@@ -1,0 +1,3283 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Nutrition Planner - Hybrid Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="foods_data.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Prompt', sans-serif; }
+        
+        @page {
+            size: A4 portrait;
+            margin: 6mm 8mm;
+        }
+
+        @media print {
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            html, body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                font-family: 'Prompt', sans-serif !important;
+                color: #111827 !important;
+                font-size: 10.5px !important;
+            }
+
+            .max-w-5xl {
+                box-shadow: none !important;
+                border: none !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border-radius: 0 !important;
+            }
+
+            .no-print, button {
+                display: none !important;
+            }
+
+            /* --- หน้าที่ 1: ประวัติ และ การคำนวณพลังงาน สารอาหาร (ไม่เกิน A4 1 แผ่น) --- */
+            .print-page-1 {
+                page-break-after: always !important;
+                break-after: page !important;
+                height: 282mm !important;
+                max-height: 282mm !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: flex-start !important;
+            }
+
+            .print-header {
+                padding: 6px 12px !important;
+                background-color: #2563eb !important;
+                color: white !important;
+                border-radius: 4px !important;
+                margin-bottom: 6px !important;
+            }
+
+            .print-header h1 {
+                font-size: 15px !important;
+                font-weight: 700 !important;
+                margin: 0 !important;
+            }
+
+            .print-header p {
+                font-size: 8.5px !important;
+                margin-top: 1px !important;
+                opacity: 0.9 !important;
+            }
+
+            .print-body {
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            .print-body.space-y-8 > :not([hidden]) ~ :not([hidden]),
+            .print-body.space-y-6 > :not([hidden]) ~ :not([hidden]) {
+                margin-top: 5px !important;
+            }
+
+            /* ส่วนข้อมูลส่วนตัว */
+            .print-info-grid {
+                display: grid !important;
+                grid-template-columns: repeat(5, 1fr) !important;
+                gap: 5px !important;
+            }
+
+            .print-info-grid label {
+                font-size: 9px !important;
+                margin-bottom: 1px !important;
+                font-weight: 600 !important;
+            }
+
+            .print-info-grid input,
+            .print-info-grid select {
+                padding: 1px 4px !important;
+                font-size: 10px !important;
+                height: 24px !important;
+                border: 1px solid #cbd5e1 !important;
+                border-radius: 4px !important;
+                background: white !important;
+            }
+
+            /* ผลลัพธ์ BMR/TDEE/BMI/IBW */
+            .print-results {
+                padding: 4px 8px !important;
+                border-radius: 4px !important;
+                background-color: #f1f5f9 !important;
+                border: 1px solid #e2e8f0 !important;
+            }
+
+            .print-results .text-xs {
+                font-size: 8.5px !important;
+            }
+
+            .print-results .text-lg {
+                font-size: 12px !important;
+                line-height: 1.1 !important;
+            }
+
+            .print-results #bmi_desc {
+                height: auto !important;
+                font-size: 8px !important;
+                margin-top: 1px !important;
+            }
+
+            /* แบ่ง 2 คอลัมน์ ซ้าย-ขวา */
+            .print-main-grid {
+                display: grid !important;
+                grid-template-columns: 1fr 1.2fr !important;
+                gap: 8px !important;
+            }
+
+            /* คอลัมน์ซ้าย: เป้าหมาย & สารอาหาร */
+            .print-left-col {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 4px !important;
+            }
+
+            .print-left-col h2 {
+                font-size: 10.5px !important;
+                margin-bottom: 2px !important;
+            }
+
+            #goal_options {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 2px !important;
+            }
+
+            #goal_options label {
+                padding: 2px 5px !important;
+                font-size: 9px !important;
+                border-radius: 4px !important;
+            }
+
+            .print-macro-box {
+                padding: 5px 7px !important;
+                border-radius: 4px !important;
+                border: 1px solid #e2e8f0 !important;
+            }
+
+            .print-macro-box .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+                margin-top: 3px !important;
+            }
+
+            .print-macro-box input[type="range"] {
+                display: none !important;
+            }
+
+            .print-macro-box .text-sm {
+                font-size: 9.5px !important;
+            }
+
+            .print-macro-box .text-xs {
+                font-size: 8.5px !important;
+            }
+
+            .print-macro-box #out_total_kcal {
+                font-size: 15px !important;
+                line-height: 1.1 !important;
+            }
+
+            /* คอลัมน์ขวา: ส่วนอาหาร Exchange List (แสดง 2 คอลัมน์ย่อย 12 หมวด) */
+            .print-right-col {
+                padding: 5px 7px !important;
+                border-radius: 4px !important;
+                border: 1px solid #e2e8f0 !important;
+            }
+
+            .print-right-col h2 {
+                font-size: 10.5px !important;
+                margin-bottom: 2px !important;
+                padding-bottom: 2px !important;
+            }
+
+            .print-desc {
+                display: none !important;
+            }
+
+            #exchange_list {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 2.5px !important;
+            }
+
+            #exchange_list > div {
+                padding: 2px 4px !important;
+                font-size: 9px !important;
+                border-radius: 4px !important;
+                border: 1px solid #e2e8f0 !important;
+                background-color: white !important;
+            }
+
+            #exchange_list .font-bold.text-gray-700 {
+                font-size: 9px !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+
+            #exchange_list .text-\[10px\] {
+                font-size: 7.5px !important;
+                line-height: 1 !important;
+            }
+
+            .print-summary-box {
+                margin-top: 4px !important;
+                padding: 3px 5px !important;
+                border-radius: 4px !important;
+            }
+
+            .print-summary-box .text-xs {
+                font-size: 8.5px !important;
+                margin-bottom: 1px !important;
+            }
+
+            .print-summary-box .text-\[10px\] {
+                font-size: 7.5px !important;
+            }
+
+            .print-summary-box .font-bold {
+                font-size: 10.5px !important;
+            }
+
+            /* --- หน้าที่ 2: ตัวอย่างปริมาณอาหาร 1 ส่วน (ไม่เกิน A4 1 แผ่น) --- */
+            .print-page-2 {
+                page-break-before: always !important;
+                break-before: page !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+                height: 282mm !important;
+                max-height: 282mm !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                padding: 2px 4px !important;
+                margin: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                background: white !important;
+            }
+
+            .print-page-2-header {
+                font-size: 12.5px !important;
+                font-weight: 700 !important;
+                border-bottom: 1.5px solid #2563eb !important;
+                padding-bottom: 2px !important;
+                margin-bottom: 5px !important;
+                color: #1e3a8a !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+            }
+
+            .print-examples-grid {
+                display: block !important;
+                column-count: 3 !important;
+                column-gap: 7px !important;
+                height: calc(100% - 25px) !important;
+            }
+
+            .example-category-card {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                margin-bottom: 5px !important;
+                border: 1px solid #cbd5e1 !important;
+                border-radius: 4px !important;
+                padding: 3px 5px !important;
+                background: #f8fafc !important;
+            }
+
+            .example-category-card h3 {
+                font-size: 10px !important;
+                font-weight: 700 !important;
+                color: #1d4ed8 !important;
+                border-bottom: 1px solid #bfdbfe !important;
+                padding-bottom: 1px !important;
+                margin-bottom: 2px !important;
+            }
+
+            .example-category-card ul {
+                font-size: 8.5px !important;
+                line-height: 1.2 !important;
+                color: #334155 !important;
+            }
+
+            .example-category-card li {
+                margin-bottom: 1.5px !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 p-4 md:p-8">
+    <div class="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden print:shadow-none print:rounded-none">
+        <!-- หน้าที่ 1: ประวัติ และ การคำนวณพลังงาน สารอาหาร -->
+        <div id="page_calc" class="print-page-1">
+            <div class="bg-blue-600 p-6 text-white text-center print-header">
+                <h1 class="text-2xl md:text-3xl font-bold">ระบบคำนวณพลังงานและส่วนอาหาร (Food Exchange)</h1>
+                <p class="opacity-80 mt-2">Deterministic Engine + Macro Distribution + Portion Control</p>
+            </div>
+
+            <div class="p-6 md:p-8 space-y-8 print-body">
+                <!-- ข้อมูลส่วนตัว -->
+                <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 print-info-grid">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">เพศ</label>
+                        <select id="gender" class="w-full border-gray-300 rounded-lg shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                            <option value="male">ชาย</option>
+                            <option value="female">หญิง</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">อายุ (ปี)</label>
+                        <input type="number" id="age" value="30" class="w-full border-gray-300 rounded-lg shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ส่วนสูง (ซม.)</label>
+                        <input type="number" id="height" value="170" class="w-full border-gray-300 rounded-lg shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">น้ำหนัก (กก.)</label>
+                        <input type="number" id="weight" value="70" class="w-full border-gray-300 rounded-lg shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">กิจกรรม</label>
+                        <select id="activity" class="w-full border-gray-300 rounded-lg shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                            <option value="1.2">ไม่ออกกำลังกาย</option>
+                            <option value="1.375">เบาๆ (1-3 วัน/สัปดาห์)</option>
+                            <option value="1.55">ปานกลาง (3-5 วัน)</option>
+                            <option value="1.725">หนัก (6-7 วัน)</option>
+                            <option value="1.9">หนักมาก (ทุกวัน)</option>
+                        </select>
+                    </div>
+                </section>
+
+                <!-- ผลลัพธ์เบื้องต้น -->
+                <section class="bg-gray-100 p-4 rounded-xl border border-gray-200 print-results">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <div>
+                            <div class="text-xs text-gray-500">IBW (กก.)</div>
+                            <div id="res_ibw" class="text-lg font-bold text-blue-600">-</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500">BMI</div>
+                            <div id="res_bmi" class="text-lg font-bold text-blue-600">-</div>
+                            <div id="bmi_desc" class="text-[10px] text-gray-600 mt-1 h-8"></div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500">BMR (kcal)</div>
+                            <div id="res_bmr" class="text-lg font-bold text-blue-600">-</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500">TDEE (kcal)</div>
+                            <div id="res_tdee" class="text-lg font-bold text-blue-600">-</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="grid grid-cols-1 lg:grid-cols-2 gap-8 print-main-grid">
+                    <!-- คอลัมน์ซ้าย: เป้าหมาย & สัดส่วน Macro -->
+                    <div class="space-y-6 print-left-col">
+                        <div class="border-l-4 border-blue-500 pl-4">
+                            <h2 class="text-md font-bold text-gray-800 mb-2">เป้าหมายพลังงาน (Target Kcal)</h2>
+                            <div class="flex flex-col gap-2" id="goal_options"></div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm print-macro-box">
+                            <h2 class="text-md font-bold text-gray-800 mb-4 border-b pb-2">1. สัดส่วนสารอาหารเป้าหมาย</h2>
+                            
+                            <div class="space-y-5">
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <label class="font-semibold text-red-600">โปรตีน (Protein)</label>
+                                        <div class="text-right">
+                                            <span id="val_pro_gkg" class="font-bold">1.0 g/kg</span>
+                                            <span id="val_pro_pct" class="text-xs text-gray-500 ml-1">(0%)</span>
+                                        </div>
+                                    </div>
+                                    <input type="range" id="slide_pro" min="0.6" max="2.5" step="0.1" value="1.0" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                    <div class="text-right text-xs mt-1"><span id="out_pro_g" class="text-red-600 font-bold">0</span> กรัม (<span id="out_pro_kcal">0</span> kcal)</div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <label class="font-semibold text-yellow-500">ไขมัน (Fat)</label>
+                                        <span id="val_fat_pct" class="font-bold">25%</span>
+                                    </div>
+                                    <input type="range" id="slide_fat" min="20" max="30" step="1" value="25" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                    <div class="text-right text-xs mt-1"><span id="out_fat_g" class="text-yellow-600 font-bold">0</span> กรัม (<span id="out_fat_kcal">0</span> kcal)</div>
+                                </div>
+                                <div class="bg-green-50 p-2 rounded border border-green-100">
+                                    <div class="flex justify-between text-sm">
+                                        <label class="font-semibold text-green-700">คาร์โบไฮเดรต (Carb)</label>
+                                        <span id="val_carb_pct" class="font-bold text-green-800">0%</span>
+                                    </div>
+                                    <div class="text-right text-xs mt-1"><span id="out_carb_g" class="text-green-700 font-bold">0</span> กรัม (<span id="out_carb_kcal">0</span> kcal)</div>
+                                </div>
+                            </div>
+
+                            <!-- สรุปพลังงานเป้าหมายรวม -->
+                            <div class="mt-5 pt-3 border-t border-gray-200 text-center">
+                                <p class="text-gray-500 text-xs">พลังงานเป้าหมายทั้งหมดที่เลือก</p>
+                                <div class="text-2xl font-black text-gray-800" id="out_total_kcal">0 <span class="text-sm font-normal text-gray-500">kcal</span></div>
+                                <div id="macro_warning" class="text-red-500 text-xs font-bold mt-2 hidden">⚠️ พลังงานจากโปรตีน+ไขมัน เกินเป้าหมาย!</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- คอลัมน์ขวา: การคำนวณส่วนอาหาร (Food Exchange) -->
+                    <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col print-right-col">
+                        <h2 class="text-md font-bold text-gray-800 mb-4 border-b pb-2">2. กำหนดส่วนอาหาร (Portion Control)</h2>
+                        <p class="text-xs text-gray-500 mb-4 print-desc">ปรับจำนวนส่วนอาหาร (หน่วย: ส่วน) ให้สารอาหารรวมใกล้เคียงเป้าหมายทางซ้ายมือ</p>
+                        
+                        <div class="space-y-3 flex-1 overflow-y-auto">
+                            <!-- รายการหมวดอาหาร (ดึงข้อมูลจาก GAS/Excel) -->
+                            <div id="exchange_list"></div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-t bg-gray-50 rounded-lg p-3 print-summary-box">
+                            <div class="text-xs font-bold text-gray-700 mb-2">สรุปสารอาหารจากการเลือกส่วน (คำนวณจริง)</div>
+                            <div class="grid grid-cols-4 gap-2 text-center text-sm">
+                                <div>
+                                    <div class="text-gray-500 text-[10px]">คาร์บ (g)</div>
+                                    <div id="act_carb" class="font-bold text-green-600">0</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500 text-[10px]">โปรตีน (g)</div>
+                                    <div id="act_pro" class="font-bold text-red-600">0</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500 text-[10px]">ไขมัน (g)</div>
+                                    <div id="act_fat" class="font-bold text-yellow-600">0</div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500 text-[10px]">พลังงาน</div>
+                                    <div id="act_kcal" class="font-bold text-blue-600">0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="flex flex-wrap justify-between items-center gap-3 pt-4 border-t no-print">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="openModalWithTab('search')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold py-2 px-3 sm:px-4 rounded-lg transition shadow flex items-center gap-1.5">
+                            🔍 ค้นหาอาหาร (1,306)
+                        </button>
+                        <button onclick="openModalWithTab('plate')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold py-2 px-3 sm:px-4 rounded-lg transition shadow flex items-center gap-1.5">
+                            🍳 ประกอบเมนูใหม่
+                        </button>
+                        <button onclick="openModalWithTab('mydishes')" class="bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-bold py-2 px-3 sm:px-4 rounded-lg transition shadow flex items-center gap-1.5">
+                            📖 เมนูของฉัน <span id="top_dishes_badge" class="bg-white text-purple-700 text-[10px] font-black px-1.5 py-0.2 rounded-full ml-1 shadow-xs">0</span>
+                        </button>
+                        <button onclick="scrollToMealTracker()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold py-2 px-3 sm:px-4 rounded-lg transition shadow flex items-center gap-1.5">
+                            📅 ตารางมื้ออาหาร
+                        </button>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="printDocument()" class="bg-gray-500 hover:bg-gray-600 text-white text-xs sm:text-sm font-bold py-2 px-3 rounded-lg transition shadow flex items-center gap-1">
+                            🖨️ พิมพ์เอกสาร
+                        </button>
+                        <button onclick="showFoodExamples()" class="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-bold py-2 px-3 rounded-lg transition shadow">
+                            ตัวอย่างอาหาร 1 ส่วน
+                        </button>
+                        <button onclick="sendToBackend()" id="btn_ai_plan" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold py-2 px-4 sm:px-6 rounded-lg transition shadow-lg flex items-center gap-1.5">
+                            ✨ จัดตารางอาหารด้วย AI
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- หน้าบันทึกและติดตามมื้ออาหารประจำวัน (Daily Meal Tracker) -->
+        <div id="daily_meal_tracker_section" class="mt-6 bg-white p-4 sm:p-6 rounded-2xl border border-indigo-200 shadow-xl no-print-if-hidden">
+            <div class="flex flex-wrap justify-between items-center border-b pb-4 mb-4 gap-2">
+                <div>
+                    <h2 class="text-lg sm:text-xl font-bold text-indigo-900 flex items-center gap-2">
+                        <span>📅 บันทึกมื้ออาหารประจำวัน (Daily Meal Tracker)</span>
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">เลือกเมนูอาหารที่ปรุงไว้จากแท็บ "เมนูของฉัน" มาใส่ในแต่ละมื้อ เช้า / กลางวัน / อาหารว่าง / เย็น ได้ในคลิกเดียว</p>
+                </div>
+                <div class="flex items-center gap-2 no-print">
+                    <button onclick="openModalWithTab('mydishes')" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs flex items-center gap-1.5 transition">
+                        <span>📖 เลือกจากเมนูของฉัน</span>
+                    </button>
+                    <button onclick="printDailyMealTracker()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs flex items-center gap-1 transition">
+                        <span>🖨️ พิมพ์ตาราง</span>
+                    </button>
+                    <button onclick="clearAllMeals()" class="bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 text-xs font-bold py-1.5 px-2.5 rounded-lg border border-gray-200 transition" title="ล้างบันทึกมื้ออาหารวันนี้ทั้งหมด">
+                        ล้างทั้งหมด
+                    </button>
+                </div>
+            </div>
+
+            <!-- Daily Nutrition Summary Bar -->
+            <div class="bg-gradient-to-br from-indigo-50/90 via-blue-50/80 to-purple-50/70 p-4 rounded-xl border border-indigo-100 mb-6 space-y-3">
+                <div>
+                    <div class="flex justify-between items-baseline text-xs mb-1.5">
+                        <span class="font-bold text-gray-700 flex items-center gap-1.5 flex-wrap">
+                            <span>🔥 พลังงานสะสมวันนี้:</span>
+                            <span id="daily_consumed_kcal" class="text-indigo-900 font-black text-base sm:text-lg">0</span>
+                            <span class="text-gray-400 font-normal">/</span>
+                            <span id="daily_target_kcal_display" class="text-gray-600 font-semibold">0 kcal</span>
+                        </span>
+                        <span id="daily_kcal_percent" class="font-black text-indigo-700 text-xs sm:text-sm">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3.5 overflow-hidden shadow-inner">
+                        <div id="daily_kcal_progress_bar" class="bg-indigo-600 h-3.5 rounded-full transition-all duration-500 shadow-sm" style="width: 0%"></div>
+                    </div>
+                    <div id="daily_kcal_warning" class="text-red-600 text-[11px] font-bold mt-1.5 hidden flex items-center gap-1">
+                        <span>⚠️ พลังงานสะสมในมื้ออาหารเกินเป้าหมายประจำวันที่กำหนดไว้!</span>
+                    </div>
+                </div>
+
+                <!-- Macro & Micro Summary Cards -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-center text-xs pt-1">
+                    <div class="bg-white p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                        <div class="text-gray-500 text-[10px]">คาร์บ (Carbs)</div>
+                        <div class="font-bold text-green-700 text-sm"><span id="daily_total_carb">0</span>g</div>
+                        <div class="text-[10px] text-gray-400">เป้า: <span id="daily_target_carb">0</span>g</div>
+                    </div>
+                    <div class="bg-white p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                        <div class="text-gray-500 text-[10px]">โปรตีน (Protein)</div>
+                        <div class="font-bold text-red-700 text-sm"><span id="daily_total_pro">0</span>g</div>
+                        <div class="text-[10px] text-gray-400">เป้า: <span id="daily_target_pro">0</span>g</div>
+                    </div>
+                    <div class="bg-white p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                        <div class="text-gray-500 text-[10px]">ไขมัน (Fat)</div>
+                        <div class="font-bold text-yellow-700 text-sm"><span id="daily_total_fat">0</span>g</div>
+                        <div class="text-[10px] text-gray-400">เป้า: <span id="daily_target_fat">0</span>g</div>
+                    </div>
+                    <div class="bg-white p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                        <div class="text-gray-500 text-[10px]">โซเดียม (Sodium)</div>
+                        <div class="font-bold text-gray-800 text-sm"><span id="daily_total_sodium">0</span> <span class="text-[10px] font-normal text-gray-500">mg</span></div>
+                        <div id="daily_sodium_badge" class="text-[9px] text-green-600 font-semibold">ปลอดภัย (&le;2,000)</div>
+                    </div>
+                    <div class="bg-white p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                        <div class="text-gray-500 text-[10px]">ใยอาหาร (Fiber)</div>
+                        <div class="font-bold text-emerald-700 text-sm"><span id="daily_total_fiber">0</span> <span class="text-[10px] font-normal text-gray-500">g</span></div>
+                        <div class="text-[10px] text-gray-400">เป้า: &ge;25g</div>
+                    </div>
+                    <div class="bg-white p-2.5 rounded-xl border border-indigo-100 shadow-2xs">
+                        <div class="text-gray-500 text-[10px]">โพแทสเซียม (K)</div>
+                        <div class="font-bold text-indigo-700 text-sm"><span id="daily_total_potassium">0</span> <span class="text-[10px] font-normal text-gray-500">mg</span></div>
+                        <div class="text-[10px] text-gray-400">แร่ธาตุรวม</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4 Meals Grid Container -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="daily_meals_grid">
+                <!-- Rendered dynamically by JavaScript -->
+            </div>
+        </div>
+
+        <!-- หน้าแสดงตารางอาหารจาก AI -->
+        <div id="ai_meal_plan_container" class="hidden mt-6 bg-white p-6 rounded-2xl border border-blue-200 shadow-xl no-print-if-hidden">
+            <div class="flex flex-wrap justify-between items-center border-b pb-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-blue-800 flex items-center gap-2">
+                        ✨ แผนอาหารประจำวัน โดย AI Nutritionist
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">คัดเลือกเมนูอาหารไทยอ้างอิงจากฐานข้อมูลโภชนาการจริง 1,306 รายการ</p>
+                </div>
+                <div class="flex gap-2 no-print mt-2 sm:mt-0">
+                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow flex items-center gap-1">
+                        🖨️ พิมพ์แผนอาหาร
+                    </button>
+                    <button onclick="document.getElementById('ai_meal_plan_container').classList.add('hidden')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-1.5 px-3 rounded">
+                        ปิด
+                    </button>
+                </div>
+            </div>
+            
+            <div id="ai_plan_content"></div>
+        </div>
+
+        <!-- หน้าที่ 2: กล่องแสดงตัวอย่างอาหาร 1 ส่วน (อยู่ด้านล่างสุดต่อจากหน้าคำนวณ) -->
+        <div id="food_examples_container" class="hidden mt-6 bg-white p-6 rounded-xl border border-gray-200 shadow-sm print-page-2"></div>
+    </div>
+
+    <!-- Modal ค้นหาอาหาร (1,306 รายการ) -->
+    <div id="food_search_modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-2 sm:p-4 hidden no-print">
+        <div class="bg-white w-full max-w-6xl h-[96vh] md:h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
+            <!-- Modal Header -->
+            <div class="p-3 sm:p-4 bg-indigo-600 text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl sm:text-2xl">🔍</span>
+                    <div>
+                        <h3 class="font-bold text-sm sm:text-lg leading-tight">คลังอาหาร & สูตรอาหาร (1,306 รายการ)</h3>
+                        <p class="text-[10px] sm:text-xs text-indigo-100">ประกอบเมนูใหม่ คำนวณสารอาหารจริง บันทึกและดึงมาใช้ในมื้ออาหาร</p>
+                    </div>
+                </div>
+                <button onclick="toggleFoodSearchModal()" class="text-white hover:text-gray-200 text-2xl font-bold px-2">&times;</button>
+            </div>
+
+            <!-- Unified Tabs Switcher (Desktop & Mobile) -->
+            <div class="flex border-b border-indigo-200 bg-indigo-50/80 text-xs font-bold text-gray-600 shrink-0 px-2 pt-2 gap-1 overflow-x-auto no-scrollbar">
+                <button id="modal_tab_btn_search" onclick="setModalTab('search')" class="py-2 px-3 sm:px-4 rounded-t-lg text-indigo-700 bg-white border-t border-l border-r border-indigo-200 flex items-center gap-1.5 transition">
+                    <span>🔍 ค้นหาวัตถุดิบ (1,306)</span>
+                </button>
+                <button id="modal_tab_btn_plate" onclick="setModalTab('plate')" class="py-2 px-3 sm:px-4 rounded-t-lg text-gray-500 hover:text-indigo-600 flex items-center gap-1.5 transition">
+                    <span>🍳 ประกอบเมนู (Dish Builder)</span>
+                    <span id="tab_plate_badge" class="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black hidden">0</span>
+                </button>
+                <button id="modal_tab_btn_mydishes" onclick="setModalTab('mydishes')" class="py-2 px-3 sm:px-4 rounded-t-lg text-gray-500 hover:text-indigo-600 flex items-center gap-1.5 transition">
+                    <span>📖 เมนูของฉัน (My Custom Dishes)</span>
+                    <span id="tab_mydishes_badge" class="bg-purple-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black">0</span>
+                </button>
+            </div>
+
+            <!-- Modal Body Container (3 Tabs Supported) -->
+            <div class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 relative">
+                
+                <!-- Left Panel: Search, Category Filters, and Results (Active in 'search' and 'plate' on desktop) -->
+                <div id="modal_search_panel" class="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
+                    <!-- Search and Filter Controls Header -->
+                    <div class="p-3 sm:p-4 border-b bg-gray-50/80 space-y-2.5 shrink-0">
+                        <!-- Search Input -->
+                        <div class="relative">
+                            <input type="text" id="food_search_input" oninput="onSearchInput(this.value)" placeholder="พิมพ์ชื่ออาหาร เช่น ข้าวกล้อง, อกไก่, ผักบุ้ง, ส้มตำ, ไข่ต้ม, ปลานิล..." class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs sm:text-sm bg-white shadow-xs">
+                            <span class="absolute left-3 top-2.5 text-gray-400 text-sm">🔍</span>
+                        </div>
+                        
+                        <!-- Category Filter Pills -->
+                        <div class="flex gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar" id="food_category_pills">
+                            <button onclick="filterCategory('all', this)" class="cat-pill active px-3 py-1 rounded-full bg-indigo-600 text-white font-medium whitespace-nowrap shadow-xs">ทั้งหมด (1,306)</button>
+                            <button onclick="filterCategory('01', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">01: ธัญพืช/ข้าว (50)</button>
+                            <button onclick="filterCategory('02', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">02: พืชหัว/ราก (23)</button>
+                            <button onclick="filterCategory('03', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">03: ถั่ว/เมล็ดพืช (39)</button>
+                            <button onclick="filterCategory('04', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">04: ผัก (265)</button>
+                            <button onclick="filterCategory('05', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">05: ผลไม้ (160)</button>
+                            <button onclick="filterCategory('06', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">06: เนื้อสัตว์ (65)</button>
+                            <button onclick="filterCategory('07', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">07: ปลา/สัตว์น้ำ (100)</button>
+                            <button onclick="filterCategory('08', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">08: ไข่ (19)</button>
+                            <button onclick="filterCategory('09', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">09: นม (38)</button>
+                            <button onclick="filterCategory('10', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">10: เครื่องเทศ/ปรุงรส (30)</button>
+                            <button onclick="filterCategory('11', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">11: อาหารปรุงสำเร็จ (234)</button>
+                            <button onclick="filterCategory('12', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">12: ขนมหวาน (120)</button>
+                            <button onclick="filterCategory('13', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">13: แมลง (13)</button>
+                            <button onclick="filterCategory('14', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">14: อื่นๆ (58)</button>
+                            <button onclick="filterCategory('Folate', this)" class="cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">Folate: อาหารโฟเลตสูง (92)</button>
+                        </div>
+
+                        <!-- Nutrient Sort & Filter Toolbar -->
+                        <div class="flex items-center justify-between gap-2 flex-wrap text-xs pt-1.5 border-t border-gray-200">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-bold text-gray-700 flex items-center gap-1">🔬 จัดเรียง:</span>
+                                <select id="food_nutrient_sort" onchange="onNutrientSortChange(this.value)" class="py-1 px-2.5 border border-gray-300 rounded-lg bg-white text-xs font-semibold text-indigo-900 focus:ring-2 focus:ring-indigo-500">
+                                    <option value="default">📋 ลำดับมาตรฐาน (รหัสอาหาร)</option>
+                                    <option value="kcal_asc">🍃 แคลอรี่ต่ำสุด (Low Calorie)</option>
+                                    <option value="kcal_desc">🔥 แคลอรี่สูงสุด (High Calorie)</option>
+                                    <option value="p_desc">🥩 โปรตีนสูงสุด (High Protein)</option>
+                                    <option value="fiber_desc">🌾 ใยอาหารสูงสุด (High Fiber)</option>
+                                    <option value="ca_desc">🦴 แคลเซียมสูงสุด (High Calcium)</option>
+                                    <option value="fe_desc">🩸 ธาตุเหล็กสูงสุด (High Iron)</option>
+                                    <option value="vit_c_desc">🍊 วิตามินซีสูงสุด (High Vitamin C)</option>
+                                    <option value="folate_desc">🌿 โฟเลตสูงสุด (High Folate)</option>
+                                    <option value="k_desc">🫘 โพแทสเซียมสูง (High Potassium)</option>
+                                    <option value="k_asc">🩺 โพแทสเซียมต่ำ (Low Potassium สำหรับไต)</option>
+                                    <option value="na_asc">🧂 โซเดียมต่ำ (Low Sodium สำหรับความดัน/ไต)</option>
+                                </select>
+                            </div>
+                            <span class="text-[11px] text-gray-500 font-medium" id="sort_result_count"></span>
+                        </div>
+                    </div>
+
+                    <!-- Scrollable Results Container -->
+                    <div class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5" id="food_search_results">
+                        <p class="text-gray-400 text-center py-8 text-sm">กำลังโหลดฐานข้อมูลอาหาร 1,306 รายการ...</p>
+                    </div>
+
+                    <!-- Mobile Sticky Bottom Plate Banner -->
+                    <div id="mobile_sticky_plate_bar" onclick="setModalTab('plate')" class="md:hidden bg-indigo-700 hover:bg-indigo-800 text-white p-2.5 flex justify-between items-center text-xs font-bold shadow-lg cursor-pointer shrink-0 transition">
+                        <div class="flex items-center gap-2">
+                            <span>🍽️ จานอาหาร:</span>
+                            <span id="mobile_bar_kcal" class="bg-indigo-900 px-2 py-0.5 rounded text-yellow-300 font-extrabold">0 kcal</span>
+                            <span id="mobile_bar_count" class="text-indigo-200 text-[11px]">(0 รายการ)</span>
+                        </div>
+                        <span class="underline text-indigo-100 flex items-center gap-1">ดูจานอาหาร 👉</span>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Dish Builder (ประกอบเมนูอาหาร / จานของฉัน) -->
+                <div id="modal_plate_panel" class="hidden md:flex w-full md:w-80 lg:w-96 bg-gray-50 p-3 sm:p-4 border-t md:border-t-0 md:border-l border-gray-200 flex-col shrink-0 overflow-hidden">
+                    <div class="flex justify-between items-center border-b pb-2 mb-2 shrink-0">
+                        <div class="flex items-center gap-1.5">
+                            <h4 class="font-bold text-gray-800 text-sm sm:text-base flex items-center gap-1.5">
+                                🍳 ประกอบเมนู / จานของฉัน
+                            </h4>
+                            <span id="plate_items_badge" class="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2 py-0.5 rounded-full">0</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="clearMyPlate()" class="text-xs text-red-500 hover:text-red-700 font-semibold hover:underline">ล้างจาน</button>
+                            <button onclick="setModalTab('search')" class="md:hidden text-xs bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg font-bold">กลับไปเลือก</button>
+                        </div>
+                    </div>
+
+                    <!-- List of items in plate with live weight controls -->
+                    <div id="my_plate_items" class="flex-1 overflow-y-auto space-y-2 mb-2 pr-1 min-h-[140px]">
+                        <p class="text-gray-400 text-center py-8 text-xs">ยังไม่มีอาหารในจาน<br>กดปุ่ม ➕ จากรายการค้นหาเพื่อเพิ่ม</p>
+                    </div>
+
+                    <!-- Plate Total Summary Footer -->
+                    <div class="pt-2 border-t bg-white p-3 rounded-xl shadow-xs text-xs space-y-1.5 shrink-0">
+                        <div class="flex justify-between items-baseline">
+                            <span class="font-bold text-gray-700">พลังงานรวมทั้งจาน:</span>
+                            <span id="plate_total_kcal" class="text-blue-700 font-black text-base sm:text-lg">0 kcal</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] text-gray-500">
+                            <span>น้ำหนักอาหารรวม:</span>
+                            <b id="plate_total_weight" class="text-gray-700 font-bold">0 กรัม</b>
+                        </div>
+                        <div class="flex justify-between text-[11px] text-gray-500">
+                            <span>เป้าหมายวันนี้:</span>
+                            <span id="plate_target_kcal">0 kcal</span>
+                        </div>
+
+                        <!-- Macro Strip in Plate -->
+                        <div class="grid grid-cols-3 gap-1.5 pt-2 text-center border-t border-gray-100">
+                            <div class="bg-green-50 p-1.5 rounded-lg border border-green-100">
+                                <div class="text-gray-500 text-[10px]">คาร์บ</div>
+                                <div class="font-bold text-green-700"><span id="plate_total_c">0</span>g</div>
+                            </div>
+                            <div class="bg-red-50 p-1.5 rounded-lg border border-red-100">
+                                <div class="text-gray-500 text-[10px]">โปรตีน</div>
+                                <div class="font-bold text-red-700"><span id="plate_total_p">0</span>g</div>
+                            </div>
+                            <div class="bg-yellow-50 p-1.5 rounded-lg border border-yellow-100">
+                                <div class="text-gray-500 text-[10px]">ไขมัน</div>
+                                <div class="font-bold text-yellow-700"><span id="plate_total_f">0</span>g</div>
+                            </div>
+                        </div>
+
+                        <!-- สรุปแร่ธาตุและวิตามินรวมในจาน -->
+                        <details class="pt-1.5 border-t border-gray-100 text-[10px] text-gray-600">
+                            <summary class="cursor-pointer font-bold text-indigo-700 hover:underline flex items-center justify-between py-1">
+                                <span>🔬 ดูแร่ธาตุ & วิตามินรวมในจาน</span>
+                                <span class="text-[9px]">▼</span>
+                            </summary>
+                            <div class="grid grid-cols-2 gap-x-2 gap-y-1 pt-1.5 text-[10px] bg-gray-50 p-2 rounded-lg border border-gray-200 mt-1">
+                                <div>🧂 โซเดียม: <b id="plate_total_na" class="text-gray-900 font-bold">0</b> mg</div>
+                                <div>🫘 โพแทสเซียม: <b id="plate_total_k" class="text-gray-900 font-bold">0</b> mg</div>
+                                <div>🦴 แคลเซียม: <b id="plate_total_ca" class="text-gray-900 font-bold">0</b> mg</div>
+                                <div>🩸 ธาตุเหล็ก: <b id="plate_total_fe" class="text-gray-900 font-bold">0</b> mg</div>
+                                <div>🍊 วิตามินซี: <b id="plate_total_vitc" class="text-gray-900 font-bold">0</b> mg</div>
+                                <div>🌾 ใยอาหาร: <b id="plate_total_fiber" class="text-gray-900 font-bold">0</b> g</div>
+                            </div>
+                        </details>
+
+                        <!-- Action Buttons for Recipe Creation & Direct Meal Placement -->
+                        <div class="pt-2 flex gap-2 border-t border-gray-100">
+                            <button onclick="openSaveDishModal()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-2.5 rounded-xl text-xs flex items-center justify-center gap-1 transition shadow-xs">
+                                <span>💾 บันทึกเมนู</span>
+                            </button>
+                            <button onclick="openQuickAddMealModal(null)" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-2.5 rounded-xl text-xs flex items-center justify-center gap-1 transition shadow-xs">
+                                <span>🚀 ใส่ลงมื้ออาหาร</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Third Panel: My Custom Dishes (เมนูของฉัน - ดึงกลับมาใช้) -->
+                <div id="modal_mydishes_panel" class="hidden flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
+                    <!-- Panel Header with Search & Sync -->
+                    <div class="p-3 sm:p-4 border-b bg-gray-50/80 space-y-2.5 shrink-0">
+                        <div class="flex flex-wrap justify-between items-center gap-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800 text-sm sm:text-base flex items-center gap-1.5">
+                                    <span>📖 เมนูอาหารของฉัน (My Custom Dishes)</span>
+                                    <span id="mydishes_count_badge" class="bg-purple-100 text-purple-700 text-xs font-black px-2 py-0.5 rounded-full">0 เมนู</span>
+                                </h4>
+                                <p class="text-[11px] text-gray-500">คลิกเลือกใส่ลงมื้อ เช้า / กลางวัน / อาหารว่าง / เย็น ได้ในคลิกเดียว</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="fetchDishesFromCloud(false)" id="btn_sync_cloud" class="bg-white hover:bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold py-1.5 px-3 rounded-xl shadow-2xs flex items-center gap-1 transition">
+                                    <span id="cloud_sync_icon">☁️</span>
+                                    <span>ซิงค์ Google Sheets</span>
+                                </button>
+                                <button onclick="setModalTab('plate')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-xl shadow-2xs flex items-center gap-1 transition">
+                                    <span>➕ ปรุงเมนูใหม่</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Search & Filter Controls -->
+                        <div class="flex gap-2">
+                            <div class="relative flex-1">
+                                <input type="text" id="mydishes_search_input" oninput="onMyDishesSearch(this.value)" placeholder="ค้นหาเมนูของฉัน เช่น ข้าวมันไก่, ต้มยำกุ้ง, สลัดอกไก่..." class="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 text-xs bg-white shadow-2xs">
+                                <span class="absolute left-3 top-2 text-gray-400 text-xs">🔍</span>
+                            </div>
+                        </div>
+
+                        <!-- Category Filter Pills for My Dishes -->
+                        <div class="flex gap-1.5 overflow-x-auto pb-0.5 text-xs no-scrollbar" id="mydishes_category_pills">
+                            <button onclick="filterMyDishesCategory('all', this)" class="mydish-cat-pill active px-3 py-1 rounded-full bg-purple-600 text-white font-medium whitespace-nowrap shadow-xs">ทั้งหมด</button>
+                            <button onclick="filterMyDishesCategory('จานเดียว', this)" class="mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">จานเดียว</button>
+                            <button onclick="filterMyDishesCategory('แกง/ต้ม', this)" class="mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">แกง/ต้ม</button>
+                            <button onclick="filterMyDishesCategory('ผัด/ทอด', this)" class="mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">ผัด/ทอด</button>
+                            <button onclick="filterMyDishesCategory('ยำ/สลัด', this)" class="mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">ยำ/สลัด</button>
+                            <button onclick="filterMyDishesCategory('นึ่ง/ย่าง', this)" class="mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">นึ่ง/ย่าง</button>
+                            <button onclick="filterMyDishesCategory('ของว่าง/ขนม', this)" class="mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">ของว่าง/ขนม</button>
+                            <button onclick="filterMyDishesCategory('เครื่องดื่ม', this)" class="mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">เครื่องดื่ม</button>
+                            <button onclick="filterMyDishesCategory('อื่นๆ', this)" class="mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300">อื่นๆ</button>
+                        </div>
+                    </div>
+
+                    <!-- Dishes List Container -->
+                    <div class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3" id="my_dishes_list">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ฟอร์มบันทึกเมนูอาหาร (Save Custom Dish Modal Dialog) -->
+    <div id="save_dish_dialog" class="fixed inset-0 bg-black bg-opacity-60 z-60 flex items-center justify-center p-3 hidden no-print">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
+            <div class="p-4 bg-emerald-600 text-white flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">💾</span>
+                    <h3 class="font-bold text-base">บันทึกเป็นเมนูอาหารของฉัน</h3>
+                </div>
+                <button onclick="closeSaveDishModal()" class="text-white hover:text-gray-200 text-2xl font-bold px-1">&times;</button>
+            </div>
+            
+            <div class="p-4 space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">ชื่อเมนูอาหาร <span class="text-red-500">*</span></label>
+                    <input type="text" id="save_dish_name" placeholder="เช่น ข้าวมันไก่ตอนสูตรอกไก่, แกงจืดเต้าหู้หมูสับ..." class="w-full p-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-semibold text-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">หมวดหมู่อาหาร</label>
+                        <select id="save_dish_category" class="w-full p-2 border border-gray-300 rounded-xl bg-white font-medium">
+                            <option value="จานเดียว">อาหารจานเดียว</option>
+                            <option value="แกง/ต้ม">แกง / ต้ม</option>
+                            <option value="ผัด/ทอด">ผัด / ทอด</option>
+                            <option value="ยำ/สลัด">ยำ / สลัด</option>
+                            <option value="นึ่ง/ย่าง">นึ่ง / ย่าง</option>
+                            <option value="ของว่าง/ขนม">ของว่าง / ขนม</option>
+                            <option value="เครื่องดื่ม">เครื่องดื่ม</option>
+                            <option value="อื่นๆ">อื่นๆ</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">จำนวนที่เสิร์ฟ (จาน)</label>
+                        <input type="number" id="save_dish_servings" min="1" max="50" value="1" class="w-full p-2 border border-gray-300 rounded-xl font-bold text-center">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">สูตร / เคล็ดลับ / วิธีปรุงสั้นๆ (ไม่บังคับ)</label>
+                    <textarea id="save_dish_note" rows="2" placeholder="เช่น หุงข้าวด้วยน้ำต้มกระดูกไก่ ใช้อกไก่ไม่เอาหนัง..." class="w-full p-2 border border-gray-300 rounded-xl text-xs"></textarea>
+                </div>
+
+                <!-- Preview of Real Nutrition Summary -->
+                <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100 space-y-1.5">
+                    <div class="font-bold text-emerald-900 flex justify-between">
+                        <span>สารอาหารคำนวณจริง:</span>
+                        <span id="save_dish_preview_kcal" class="text-emerald-700 font-black">0 kcal</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 text-center text-[11px] text-gray-600">
+                        <div>คาร์บ: <b id="save_dish_preview_c" class="text-green-700">0</b>g</div>
+                        <div>โปรตีน: <b id="save_dish_preview_p" class="text-red-700">0</b>g</div>
+                        <div>ไขมัน: <b id="save_dish_preview_f" class="text-yellow-700">0</b>g</div>
+                    </div>
+                    <div class="text-[10px] text-gray-500 pt-1 border-t border-emerald-100/60 truncate" id="save_dish_preview_ingredients">
+                        วัตถุดิบ: -
+                    </div>
+                </div>
+
+                <!-- Cloud Sync Checkbox -->
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="save_dish_cloud_sync" checked class="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500">
+                    <label for="save_dish_cloud_sync" class="text-gray-700 font-medium cursor-pointer">
+                        ☁️ ซิงค์บันทึกขึ้น Google Sheets อัตโนมัติ
+                    </label>
+                </div>
+            </div>
+
+            <div class="p-3 bg-gray-50 border-t flex justify-end gap-2">
+                <button onclick="closeSaveDishModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl text-xs transition">
+                    ยกเลิก
+                </button>
+                <button onclick="confirmSaveCustomDish()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-1">
+                    <span>💾 บันทึกเมนู</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal เลือกมื้ออาหารด่วน (Quick Add to Meal Dialog) -->
+    <div id="quick_add_meal_dialog" class="fixed inset-0 bg-black bg-opacity-60 z-60 flex items-center justify-center p-3 hidden no-print">
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
+            <div class="p-4 bg-indigo-600 text-white flex justify-between items-center">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-xl">🍽️</span>
+                    <h3 class="font-bold text-sm sm:text-base">เลือกมื้อที่ต้องการใส่เมนูนี้</h3>
+                </div>
+                <button onclick="closeQuickAddMealModal()" class="text-white hover:text-gray-200 text-2xl font-bold px-1">&times;</button>
+            </div>
+            
+            <div class="p-4 space-y-2.5 text-xs">
+                <p id="quick_add_meal_dish_title" class="font-bold text-gray-800 text-center pb-1 border-b text-sm truncate">
+                    เมนู: ข้าวมันไก่
+                </p>
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                    <button onclick="selectMealForAdd('breakfast')" class="p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl font-bold text-amber-900 flex flex-col items-center gap-1 transition shadow-2xs">
+                        <span class="text-2xl">🌅</span>
+                        <span>มื้อเช้า</span>
+                        <span class="text-[10px] text-amber-700 font-normal">Breakfast</span>
+                    </button>
+                    <button onclick="selectMealForAdd('lunch')" class="p-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl font-bold text-orange-900 flex flex-col items-center gap-1 transition shadow-2xs">
+                        <span class="text-2xl">☀️</span>
+                        <span>มื้อกลางวัน</span>
+                        <span class="text-[10px] text-orange-700 font-normal">Lunch</span>
+                    </button>
+                    <button onclick="selectMealForAdd('snack')" class="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl font-bold text-emerald-900 flex flex-col items-center gap-1 transition shadow-2xs">
+                        <span class="text-2xl">☕</span>
+                        <span>อาหารว่าง</span>
+                        <span class="text-[10px] text-emerald-700 font-normal">Snack</span>
+                    </button>
+                    <button onclick="selectMealForAdd('dinner')" class="p-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl font-bold text-indigo-900 flex flex-col items-center gap-1 transition shadow-2xs">
+                        <span class="text-2xl">🌙</span>
+                        <span>มื้อเย็น</span>
+                        <span class="text-[10px] text-indigo-700 font-normal">Dinner</span>
+                    </button>
+                </div>
+            </div>
+            <div class="p-2.5 bg-gray-50 border-t text-center">
+                <button onclick="closeQuickAddMealModal()" class="text-xs text-gray-500 hover:text-gray-800 font-medium">
+                    ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- Modal รายละเอียดโภชนาการฉบับเต็ม (Full Nutrition Facts Modal) -->
+    <div id="nutrition_facts_modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-3 hidden no-print">
+        <div class="bg-white w-full max-w-lg max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
+            <!-- Header -->
+            <div class="p-4 bg-gray-900 text-white flex justify-between items-start">
+                <div>
+                    <div class="text-[11px] text-gray-400" id="nft_group">กลุ่มอาหาร</div>
+                    <h3 class="font-bold text-lg leading-tight" id="nft_title">ชื่ออาหาร</h3>
+                    <div class="text-xs text-gray-300 italic" id="nft_en">English name</div>
+                </div>
+                <button onclick="closeNutritionFactsModal()" class="text-gray-400 hover:text-white text-2xl font-bold px-2">&times;</button>
+            </div>
+            <!-- Body -->
+            <div class="p-4 overflow-y-auto space-y-4 text-xs" id="nft_body">
+                <!-- Dynamic Nutrition Facts Table injected here -->
+            </div>
+            <!-- Footer -->
+            <div class="p-3 bg-gray-50 border-t flex justify-between items-center">
+                <span class="text-[10px] text-gray-500">ที่มา: ตารางคุณค่าทางโภชนาการ สำนักโภชนาการ</span>
+                <div class="flex gap-2">
+                    <button id="nft_btn_add" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 transition">
+                        <span>➕ ใส่จาน</span>
+                    </button>
+                    <button onclick="closeNutritionFactsModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-3 py-1.5 rounded-xl text-xs transition">
+                        ปิด
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        try {
+            const els = {
+            gender: document.getElementById('gender'), age: document.getElementById('age'),
+            height: document.getElementById('height'), weight: document.getElementById('weight'), activity: document.getElementById('activity'),
+            res_ibw: document.getElementById('res_ibw'), res_bmi: document.getElementById('res_bmi'), 
+            res_bmr: document.getElementById('res_bmr'), res_tdee: document.getElementById('res_tdee'),
+            bmi_desc: document.getElementById('bmi_desc'), goal_options: document.getElementById('goal_options'),
+            slide_pro: document.getElementById('slide_pro'), val_pro_gkg: document.getElementById('val_pro_gkg'), val_pro_pct: document.getElementById('val_pro_pct'),
+            out_pro_g: document.getElementById('out_pro_g'), out_pro_kcal: document.getElementById('out_pro_kcal'),
+            slide_fat: document.getElementById('slide_fat'), val_fat_pct: document.getElementById('val_fat_pct'),
+            out_fat_g: document.getElementById('out_fat_g'), out_fat_kcal: document.getElementById('out_fat_kcal'),
+            val_carb_pct: document.getElementById('val_carb_pct'), out_carb_g: document.getElementById('out_carb_g'),
+            out_carb_kcal: document.getElementById('out_carb_kcal'), macro_warning: document.getElementById('macro_warning'),
+            out_total_kcal: document.getElementById('out_total_kcal'),
+            exchange_list: document.getElementById('exchange_list'),
+            act_carb: document.getElementById('act_carb'), act_pro: document.getElementById('act_pro'),
+            act_fat: document.getElementById('act_fat'), act_kcal: document.getElementById('act_kcal')
+        };
+
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycby72ZAQfB4LKNlh4MPiRRCEkBLxcTkfOw5GrvE9BibTeoElFDw3AzmXlXDKCkdsVUNG7g/exec";
+        let currentTargetKcal = 0;
+        let targetMacros = { c:0, p:0, f:0 };
+        let globalFoodItems = [];
+
+        // ==========================================
+        // ตัวแปรและคลังข้อมูลเมนูอาหาร & ตารางมื้ออาหาร
+        // ==========================================
+        let myCustomDishes = [];
+        let dailyMealLog = {
+            breakfast: [],
+            lunch: [],
+            snack: [],
+            dinner: []
+        };
+        let currentModalTab = 'search';
+        let myDishesCategoryFilter = 'all';
+        let myDishesSearchQuery = '';
+        let pendingQuickAddDish = null;
+
+        // ข้อมูล Food Exchange List อ้างอิงจาก test.xlsx / Google Sheets
+        const exchangeData = [
+            { id: 'milk_skim', name: 'นมขาดมันเนย (240 ml)', unit: '1 กล่อง', c: 12, p: 8, f: 0, kcal: 80, val: 0 },
+            { id: 'milk_lowfat', name: 'นมพร่องมันเนย (240 ml)', unit: '1 กล่อง', c: 12, p: 8, f: 5, kcal: 125, val: 0 },
+            { id: 'milk_whole', name: 'นมสด (240 ml)', unit: '1 กล่อง', c: 12, p: 8, f: 8, kcal: 152, val: 0 },
+            { id: 'veg_a', name: 'ผัก ประเภท ก', unit: 'ดิบ 2 ทัพพี ,สุก 1 ทัพพี', c: 0, p: 0, f: 0, kcal: 0, val: 0 },
+            { id: 'veg_b', name: 'ผัก ประเภท ข', unit: 'ดิบ 2 ทัพพี ,สุก 1 ทัพพี', c: 5, p: 2, f: 0, kcal: 28, val: 3 },
+            { id: 'fruit', name: 'ผลไม้', unit: 'แล้วแต่ขนาด', c: 15, p: 0, f: 0, kcal: 60, val: 3 },
+            { id: 'rice', name: 'ข้าวแป้ง', unit: '1 ทัพพี', c: 18, p: 2, f: 0, kcal: 80, val: 6 },
+            { id: 'meat_lean', name: 'เนื้อสัตว์ไขมันต่ำมาก', unit: '2 ช้อนโต๊ะ', c: 0, p: 7, f: 1, kcal: 37, val: 4 },
+            { id: 'meat_low', name: 'เนื้อสัตว์ไขมันต่ำ', unit: '2 ช้อนโต๊ะ', c: 0, p: 7, f: 3, kcal: 55, val: 2 },
+            { id: 'meat_med', name: 'เนื้อสัตว์ไขมันปานกลาง', unit: '2 ช้อนโต๊ะ', c: 0, p: 7, f: 5, kcal: 73, val: 0 },
+            { id: 'meat_high', name: 'เนื้อสัตว์ไขมันสูง', unit: '2 ช้อนโต๊ะ', c: 0, p: 7, f: 8, kcal: 100, val: 0 },
+            { id: 'fat', name: 'ไขมัน', unit: '1 ช้อนชา', c: 0, p: 0, f: 5, kcal: 45, val: 4 }
+        ];
+
+        function initExchangeUI() {
+            els.exchange_list.innerHTML = '';
+            for (let index = 0; index < exchangeData.length; index++) {
+                const item = exchangeData[index];
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-white border rounded p-2 text-sm";
+                div.innerHTML = `
+                    <div class="flex-1 pr-2">
+                        <div class="font-bold text-gray-700">${item.name}</div>
+                        <div class="text-[10px] text-gray-400">C:${item.c} P:${item.p} F:${item.f} (${item.kcal} kcal) / 1 ส่วน = ${item.unit}</div>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="updatePortion(${index}, -1)" class="w-6 h-6 bg-gray-200 rounded flex items-center justify-center font-bold text-gray-600 hover:bg-gray-300">-</button>
+                        <span class="w-6 text-center font-bold text-blue-700" id="val_ex_${index}">${item.val}</span>
+                        <span class="text-xs text-gray-500 mr-1">ส่วน</span>
+                        <button onclick="updatePortion(${index}, 1)" class="w-6 h-6 bg-blue-100 text-blue-600 rounded flex items-center justify-center font-bold hover:bg-blue-200">+</button>
+                    </div>
+                `;
+                els.exchange_list.appendChild(div);
+            }
+            calculateActualExchange();
+        }
+
+        window.updatePortion = function(index, change) {
+            let newVal = exchangeData[index].val + change;
+            if (newVal < 0) newVal = 0;
+            exchangeData[index].val = newVal;
+            document.getElementById(`val_ex_${index}`).innerText = newVal;
+            calculateActualExchange();
+        };
+
+        function calculateActualExchange() {
+            let sumC = 0, sumP = 0, sumF = 0, sumKcal = 0;
+            for (let i = 0; i < exchangeData.length; i++) {
+                const item = exchangeData[i];
+                sumC += item.c * item.val;
+                sumP += item.p * item.val;
+                sumF += item.f * item.val;
+                sumKcal += item.kcal * item.val;
+            }
+
+            els.act_carb.innerText = sumC;
+            els.act_pro.innerText = sumP;
+            els.act_fat.innerText = sumF;
+            els.act_kcal.innerText = sumKcal;
+
+            // Highlight if diff > 10%
+            const checkColor = (act, target, el) => {
+                if (!el) return;
+                if (target === 0) return;
+                const diff = Math.abs(act - target) / target;
+                if(diff > 0.1) {
+                    el.classList.remove('text-green-600', 'text-yellow-600', 'text-red-600');
+                    el.classList.add('text-red-500');
+                } else {
+                    el.classList.remove('text-red-500');
+                    if(el.id === 'act_carb') el.classList.add('text-green-600');
+                    if(el.id === 'act_fat') el.classList.add('text-yellow-600');
+                    if(el.id === 'act_pro') el.classList.add('text-red-600');
+                }
+            };
+            
+            checkColor(sumC, targetMacros.c, els.act_carb);
+            checkColor(sumP, targetMacros.p, els.act_pro);
+            checkColor(sumF, targetMacros.f, els.act_fat);
+        }
+
+        // Logic Calculator ...
+        function calculateBase() {
+            if (!els.gender || !els.age || !els.height || !els.weight || !els.activity) return;
+            const gender = els.gender.value;
+            const age = parseFloat(els.age.value) || 0;
+            const h_cm = parseFloat(els.height.value) || 0;
+            const w_kg = parseFloat(els.weight.value) || 0;
+            const act = parseFloat(els.activity.value) || 1.2;
+            if (h_cm === 0 || w_kg === 0 || age === 0) return;
+
+            const ibw = gender === 'male' ? h_cm - 100 : h_cm - 105;
+            els.res_ibw.innerText = ibw.toFixed(1);
+            const bmi = w_kg / Math.pow(h_cm / 100, 2);
+            els.res_bmi.innerText = bmi.toFixed(1);
+
+            let isOverweight = bmi > 22.9;
+            els.bmi_desc.innerText = bmi < 18.5 ? "ต่ำกว่าเกณฑ์" : bmi <= 22.9 ? "สมส่วน" : "อ้วน/เกินเกณฑ์";
+
+            let bmr = gender === 'male' ? 66 + (13.7 * w_kg) + (5 * h_cm) - (6.8 * age) : 665 + (9.6 * w_kg) + (1.8 * h_cm) - (4.7 * age);
+            els.res_bmr.innerText = Math.round(bmr);
+            const tdee = bmr * act;
+            els.res_tdee.innerText = Math.round(tdee);
+
+            updateGoalOptions(tdee, ibw, isOverweight);
+        }
+
+        function updateGoalOptions(tdee, ibw, isOverweight) {
+            els.goal_options.innerHTML = '';
+            const addOpt = (val, label, checked) => {
+                els.goal_options.innerHTML += `
+                    <label class="flex items-center p-2 border rounded-lg cursor-pointer text-sm ${checked ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}">
+                        <input type="radio" name="goal" value="${val}" class="mr-2" ${checked ? 'checked' : ''} onchange="selectGoal(this)">
+                        ${label} (${Math.round(val)} kcal)
+                    </label>
+                `;
+            };
+            addOpt(tdee, 'รักษาน้ำหนัก', !isOverweight);
+            addOpt(tdee - 500, 'ลดน้ำหนัก (-500)', isOverweight);
+            if(isOverweight) {
+                let bmr_ibw = els.gender.value === 'male' ? 66 + (13.7 * ibw) + (5 * els.height.value) - (6.8 * els.age.value) : 665 + (9.6 * ibw) + (1.8 * els.height.value) - (4.7 * els.age.value);
+                addOpt(bmr_ibw * els.activity.value, 'เป้าหมาย IBW', false);
+            }
+            
+            // ใช้ setTimeout เพื่อรอให้ DOM อัปเดตก่อน query
+            setTimeout(() => {
+                const checkedRadio = document.querySelector('input[name="goal"]:checked');
+                if (checkedRadio) selectGoal(checkedRadio);
+            }, 50);
+        }
+
+        window.selectGoal = function(radio) {
+            if (!radio) return;
+            const radios = document.querySelectorAll('input[name="goal"]');
+            for (let i = 0; i < radios.length; i++) {
+                if (radios[i].closest('label')) radios[i].closest('label').className = "flex items-center p-2 border rounded-lg cursor-pointer text-sm border-gray-200";
+            }
+            if (radio.closest('label')) {
+                radio.closest('label').className = "flex items-center p-2 border rounded-lg cursor-pointer text-sm border-blue-500 bg-blue-50";
+            }
+            currentTargetKcal = parseFloat(radio.value);
+            if (els.out_total_kcal) els.out_total_kcal.innerHTML = `${Math.round(currentTargetKcal)} <span class="text-sm font-normal text-gray-500">kcal</span>`;
+            calculateMacros();
+        };
+
+        // ==========================================
+        // ฐานข้อมูลอาหาร 1,306 รายการ & ระบบค้นหาอาหาร
+        // ==========================================
+        let allFoods1306 = [];
+        let currentCategoryFilter = 'all';
+        let currentSearchQuery = '';
+        let currentNutrientSort = 'default';
+        let myPlate = [];
+
+        function normalizeGid(val) {
+            if (val === undefined || val === null) return '';
+            const s = String(val).trim();
+            if (/^\d+$/.test(s)) {
+                return s.padStart(2, '0');
+            }
+            return s.toLowerCase();
+        }
+
+        async function loadFoodsDatabase() {
+            try {
+                // 1. ตรวจสอบว่าโหลดผ่าน window.LOCAL_FOODS_DATA (จาก foods_data.js) สำเร็จแล้วหรือไม่
+                if (window.LOCAL_FOODS_DATA && Array.isArray(window.LOCAL_FOODS_DATA) && window.LOCAL_FOODS_DATA.length > 0) {
+                    allFoods1306 = window.LOCAL_FOODS_DATA;
+                    renderSearchResults();
+                    return;
+                }
+
+                // 2. พยายามโหลด foods_data.json
+                let resp = await fetch('foods_data.json');
+                if (resp.ok) {
+                    allFoods1306 = await resp.json();
+                } else {
+                    // 3. Fallback to Google Apps Script
+                    let gasResp = await fetch(`${GAS_API_URL}?action=foods`);
+                    let gasData = await gasResp.json();
+                    if (gasData.foods) allFoods1306 = gasData.foods;
+                }
+            } catch(e) {
+                console.warn("Error loading local foods database, trying GAS fallback:", e);
+                try {
+                    let gasResp = await fetch(`${GAS_API_URL}?action=foods`);
+                    let gasData = await gasResp.json();
+                    if (gasData.foods) allFoods1306 = gasData.foods;
+                } catch(err2) {
+                    console.error("GAS fallback error:", err2);
+                }
+            }
+            renderSearchResults();
+        }
+
+        window.setModalTab = function(tab) {
+            currentModalTab = tab;
+            const searchPanel = document.getElementById('modal_search_panel');
+            const platePanel = document.getElementById('modal_plate_panel');
+            const mydishesPanel = document.getElementById('modal_mydishes_panel');
+
+            const btnSearch = document.getElementById('modal_tab_btn_search');
+            const btnPlate = document.getElementById('modal_tab_btn_plate');
+            const btnMyDishes = document.getElementById('modal_tab_btn_mydishes');
+
+            const activeTabClass = "py-2 px-3 sm:px-4 rounded-t-lg text-indigo-700 bg-white border-t border-l border-r border-indigo-200 flex items-center gap-1.5 transition font-bold shadow-2xs";
+            const inactiveTabClass = "py-2 px-3 sm:px-4 rounded-t-lg text-gray-500 hover:text-indigo-600 flex items-center gap-1.5 transition font-semibold";
+
+            if (btnSearch) btnSearch.className = (tab === 'search') ? activeTabClass : inactiveTabClass;
+            if (btnPlate) btnPlate.className = (tab === 'plate') ? activeTabClass : inactiveTabClass;
+            if (btnMyDishes) btnMyDishes.className = (tab === 'mydishes') ? activeTabClass : inactiveTabClass;
+
+            if (tab === 'mydishes') {
+                if (searchPanel) searchPanel.classList.add('hidden');
+                if (platePanel) { platePanel.classList.add('hidden'); platePanel.classList.remove('flex'); }
+                if (mydishesPanel) { mydishesPanel.classList.remove('hidden'); mydishesPanel.classList.add('flex'); }
+                renderMyDishes();
+            } else if (tab === 'plate') {
+                if (mydishesPanel) { mydishesPanel.classList.add('hidden'); mydishesPanel.classList.remove('flex'); }
+                if (window.innerWidth >= 768) {
+                    if (searchPanel) searchPanel.classList.remove('hidden');
+                    if (platePanel) { platePanel.classList.remove('hidden'); platePanel.classList.add('flex'); }
+                } else {
+                    if (searchPanel) searchPanel.classList.add('hidden');
+                    if (platePanel) { platePanel.classList.remove('hidden'); platePanel.classList.add('flex'); }
+                }
+            } else { // 'search'
+                if (mydishesPanel) { mydishesPanel.classList.add('hidden'); mydishesPanel.classList.remove('flex'); }
+                if (searchPanel) searchPanel.classList.remove('hidden');
+                if (window.innerWidth >= 768) {
+                    if (platePanel) { platePanel.classList.remove('hidden'); platePanel.classList.add('flex'); }
+                } else {
+                    if (platePanel) { platePanel.classList.add('hidden'); platePanel.classList.remove('flex'); }
+                }
+            }
+        };
+
+        window.openModalWithTab = function(tab, targetMeal = null) {
+            window.activeTargetMeal = targetMeal;
+            const modal = document.getElementById('food_search_modal');
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+            }
+            setModalTab(tab);
+            if (allFoods1306.length === 0) loadFoodsDatabase();
+        };
+
+        window.scrollToMealTracker = function() {
+            const sec = document.getElementById('daily_meal_tracker_section');
+            if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.toggleFoodSearchModal = function() {
+            const modal = document.getElementById('food_search_modal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                setModalTab('search');
+                if (allFoods1306.length === 0) loadFoodsDatabase();
+                else renderSearchResults();
+                setTimeout(() => {
+                    const inp = document.getElementById('food_search_input');
+                    if (inp) inp.focus();
+                }, 100);
+            }
+        };
+
+        window.onSearchInput = function(val) {
+            currentSearchQuery = val.trim().toLowerCase();
+            renderSearchResults();
+        };
+
+        window.filterCategory = function(cat, btn) {
+            currentCategoryFilter = cat;
+            document.querySelectorAll('#food_category_pills .cat-pill').forEach(b => {
+                b.className = "cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300";
+            });
+            btn.className = "cat-pill active px-3 py-1 rounded-full bg-indigo-600 text-white font-medium whitespace-nowrap shadow-xs";
+            renderSearchResults();
+        };
+
+        window.onNutrientSortChange = function(val) {
+            currentNutrientSort = val;
+            renderSearchResults();
+        };
+
+        window.adjustInputGrams = function(foodId, delta) {
+            const inp = document.getElementById('grams_input_' + foodId);
+            if (!inp) return;
+            let current = parseFloat(inp.value) || 100;
+            current = Math.max(5, Math.min(2000, current + delta));
+            inp.value = current;
+        };
+
+        window.addWithGrams = function(foodId, overrideGrams) {
+            const food = allFoods1306.find(x => x.id === foodId);
+            if (!food) return;
+
+            let grams = 100;
+            if (overrideGrams !== undefined && overrideGrams > 0) {
+                grams = overrideGrams;
+            } else {
+                const inp = document.getElementById('grams_input_' + foodId);
+                grams = inp ? (parseFloat(inp.value) || 100) : 100;
+            }
+
+            const existing = myPlate.find(x => x.id === foodId);
+            if (existing) {
+                existing.weight_g = (existing.weight_g || 100) + grams;
+            } else {
+                myPlate.push({ ...food, weight_g: grams });
+            }
+            renderMyPlate();
+            showPlateToast(`เพิ่ม "${food.name}" (${grams} กรัม) ลงในจานแล้ว`);
+        };
+
+        window.addToMyPlate = function(foodId, customGrams) {
+            addWithGrams(foodId, customGrams);
+        };
+
+        function showPlateToast(msg) {
+            let toast = document.getElementById('plate_toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'plate_toast';
+                toast.className = 'fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-gray-900/90 backdrop-blur-xs text-white text-xs px-4 py-2 rounded-full shadow-2xl z-50 transition-opacity duration-300 pointer-events-none opacity-0 flex items-center gap-1.5 border border-gray-700';
+                document.body.appendChild(toast);
+            }
+            toast.innerHTML = `<span>🍽️</span> <span>${msg}</span>`;
+            toast.style.opacity = '1';
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 2200);
+        }
+
+        function renderSearchResults() {
+            const container = document.getElementById('food_search_results');
+            const counter = document.getElementById('sort_result_count');
+            if (!container) return;
+
+            if (allFoods1306.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8 text-sm">กำลังเชื่อมต่อฐานข้อมูลอาหาร 1,306 รายการ...</p>';
+                return;
+            }
+
+            let filtered = allFoods1306.filter(item => {
+                if (currentCategoryFilter !== 'all') {
+                    if (normalizeGid(item.gid) !== normalizeGid(currentCategoryFilter)) {
+                        return false;
+                    }
+                }
+                if (currentSearchQuery) {
+                    const matchName = item.name && item.name.toLowerCase().includes(currentSearchQuery);
+                    const matchEn = (item.en || item.name_en) && (item.en || item.name_en).toLowerCase().includes(currentSearchQuery);
+                    const matchId = item.id && String(item.id).includes(currentSearchQuery);
+                    const matchGroup = item.group && item.group.toLowerCase().includes(currentSearchQuery);
+                    if (!matchName && !matchEn && !matchId && !matchGroup) return false;
+                }
+                return true;
+            });
+
+            // จัดเรียงตามสารอาหารที่เลือก
+            if (currentNutrientSort === 'kcal_desc') {
+                filtered.sort((a, b) => (b.kcal || 0) - (a.kcal || 0));
+            } else if (currentNutrientSort === 'kcal_asc') {
+                filtered.sort((a, b) => (a.kcal || 0) - (b.kcal || 0));
+            } else if (currentNutrientSort === 'p_desc') {
+                filtered.sort((a, b) => (b.p || 0) - (a.p || 0));
+            } else if (currentNutrientSort === 'fiber_desc') {
+                filtered.sort((a, b) => (b.fiber || 0) - (a.fiber || 0));
+            } else if (currentNutrientSort === 'ca_desc') {
+                filtered.sort((a, b) => (b.ca || 0) - (a.ca || 0));
+            } else if (currentNutrientSort === 'fe_desc') {
+                filtered.sort((a, b) => (b.fe || 0) - (a.fe || 0));
+            } else if (currentNutrientSort === 'vit_c_desc') {
+                filtered.sort((a, b) => (b.vit_c || 0) - (a.vit_c || 0));
+            } else if (currentNutrientSort === 'folate_desc') {
+                filtered.sort((a, b) => (b.folate || 0) - (a.folate || 0));
+            } else if (currentNutrientSort === 'k_desc') {
+                filtered.sort((a, b) => (b.k || 0) - (a.k || 0));
+            } else if (currentNutrientSort === 'k_asc') {
+                filtered.sort((a, b) => {
+                    const valA = (a.k !== undefined && a.k > 0) ? a.k : 99999;
+                    const valB = (b.k !== undefined && b.k > 0) ? b.k : 99999;
+                    return valA - valB;
+                });
+            } else if (currentNutrientSort === 'na_asc') {
+                filtered.sort((a, b) => {
+                    const valA = (a.na !== undefined && a.na > 0) ? a.na : 99999;
+                    const valB = (b.na !== undefined && b.na > 0) ? b.na : 99999;
+                    return valA - valB;
+                });
+            }
+
+            if (counter) {
+                counter.innerText = `พบ ${filtered.length.toLocaleString()} รายการ`;
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8 text-sm">ไม่พบรายการอาหารที่ค้นหา</p>';
+                return;
+            }
+
+            const displayList = filtered.slice(0, 50);
+            let html = '';
+            displayList.forEach(f => {
+                let badges = [];
+                if (currentNutrientSort === 'ca_desc' || (f.ca && f.ca >= 50)) {
+                    badges.push(`<span class="bg-blue-50 text-blue-700 text-[10px] px-1.5 py-0.5 rounded border border-blue-200 font-semibold">🦴 แคลเซียม: ${f.ca} mg</span>`);
+                }
+                if (currentNutrientSort === 'fe_desc' || (f.fe && f.fe >= 1.5)) {
+                    badges.push(`<span class="bg-red-50 text-red-700 text-[10px] px-1.5 py-0.5 rounded border border-red-200 font-semibold">🩸 เหล็ก: ${f.fe} mg</span>`);
+                }
+                if (currentNutrientSort === 'k_desc' || currentNutrientSort === 'k_asc' || (f.k && f.k >= 200)) {
+                    badges.push(`<span class="bg-purple-50 text-purple-700 text-[10px] px-1.5 py-0.5 rounded border border-purple-200 font-semibold">🫘 โพแทสเซียม: ${f.k} mg</span>`);
+                }
+                if (currentNutrientSort === 'vit_c_desc' || (f.vit_c && f.vit_c >= 10)) {
+                    badges.push(`<span class="bg-orange-50 text-orange-700 text-[10px] px-1.5 py-0.5 rounded border border-orange-200 font-semibold">🍊 วิตามินซี: ${f.vit_c} mg</span>`);
+                }
+                if (currentNutrientSort === 'folate_desc' || (f.folate && f.folate >= 25)) {
+                    badges.push(`<span class="bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5 rounded border border-green-200 font-semibold">🌿 โฟเลต: ${f.folate} µg</span>`);
+                }
+                if (currentNutrientSort === 'fiber_desc' || (f.fiber && f.fiber >= 3)) {
+                    badges.push(`<span class="bg-amber-50 text-amber-700 text-[10px] px-1.5 py-0.5 rounded border border-amber-200 font-semibold">🌾 ใยอาหาร: ${f.fiber} g</span>`);
+                }
+
+                html += `
+                    <div class="bg-white p-3 sm:p-3.5 rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-md transition space-y-2">
+                        <!-- Top Header Row: Name, English, and Group Badge -->
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                <h4 class="font-bold text-gray-900 text-sm sm:text-base leading-tight">${f.name}</h4>
+                                ${f.en ? `<div class="text-[11px] text-gray-400 truncate mt-0.5">${f.en}</div>` : ''}
+                            </div>
+                            <span class="text-[10px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full border border-indigo-100 shrink-0">
+                                กลุ่ม ${f.gid} (ID: ${f.id})
+                            </span>
+                        </div>
+
+                        <!-- Main Macros Row (Kcal, C, P, F, Na, Serving size) -->
+                        <div class="flex items-center gap-1.5 sm:gap-2 text-xs flex-wrap">
+                            <span class="font-black text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded">${Math.abs(f.kcal || 0)} kcal</span>
+                            <span class="text-green-700 bg-green-50 px-1.5 py-0.5 rounded font-medium">C: ${Math.abs(f.c || 0)}g</span>
+                            <span class="text-red-700 bg-red-50 px-1.5 py-0.5 rounded font-medium">P: ${Math.abs(f.p || 0)}g</span>
+                            <span class="text-yellow-800 bg-yellow-50 px-1.5 py-0.5 rounded font-medium">F: ${Math.abs(f.f || 0)}g</span>
+                            ${f.na ? `<span class="text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">โซเดียม: ${Math.abs(f.na)}mg</span>` : ''}
+                            <span class="text-gray-400 text-[10px] ml-auto">ต่อ ${f.serving || '100g'}</span>
+                        </div>
+
+                        <!-- Highlight Badges -->
+                        ${badges.length > 0 ? `
+                            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                ${badges.join('')}
+                            </div>
+                        ` : ''}
+
+                        <!-- Collapsible Mini Table: All Minerals & Vitamins (Never hidden on small PC/Mobile) -->
+                        <details class="text-[10px] text-gray-600 border-t border-gray-100 pt-1">
+                            <summary class="cursor-pointer font-semibold text-indigo-600 hover:text-indigo-800 flex items-center justify-between py-0.5">
+                                <span>🔬 ดูวิตามินและแร่ธาตุในอาหารนี้</span>
+                                <span class="text-[9px]">▼</span>
+                            </summary>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1 pt-1.5 text-[10px] bg-gray-50/80 p-2 rounded-lg mt-1 border border-gray-100">
+                                <div>🦴 แคลเซียม: <b>${f.ca || 0}</b> mg</div>
+                                <div>🩸 ธาตุเหล็ก: <b>${f.fe || 0}</b> mg</div>
+                                <div>🫘 โพแทสเซียม: <b>${f.k || 0}</b> mg</div>
+                                <div>🍊 วิตามินซี: <b>${f.vit_c || 0}</b> mg</div>
+                                <div>🌿 โฟเลต: <b>${f.folate || 0}</b> µg</div>
+                                <div>🌾 ใยอาหาร: <b>${f.fiber || 0}</b> g</div>
+                                <div>🧂 โซเดียม: <b>${f.na || 0}</b> mg</div>
+                                <div>⚡ วิตามินเอ: <b>${f.vit_a || 0}</b> µg</div>
+                            </div>
+                        </details>
+
+                        <!-- Action Bar: Label Button + Grams Stepper + Add Button -->
+                        <div class="flex items-center justify-between gap-2 pt-2 border-t border-gray-100 flex-wrap">
+                            <button onclick="openNutritionFactsModal('${f.id}')" class="text-gray-600 hover:text-indigo-700 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition">
+                                <span>📊 ฉลากเต็ม</span>
+                            </button>
+
+                            <div class="flex items-center gap-1.5 ml-auto">
+                                <span class="text-xs text-gray-500 font-medium">น้ำหนัก:</span>
+                                <div class="flex items-center border border-gray-300 rounded-lg bg-white overflow-hidden shadow-xs">
+                                    <button onclick="adjustInputGrams('${f.id}', -25)" class="px-2 py-1 bg-gray-50 hover:bg-gray-200 text-gray-700 text-xs font-black">-</button>
+                                    <input type="number" id="grams_input_${f.id}" value="100" min="1" max="2000" step="10" 
+                                           class="w-14 text-center text-xs font-black py-1 border-none focus:outline-none focus:ring-1 focus:ring-indigo-500 text-gray-900" 
+                                           title="ใส่น้ำหนัก (กรัม)">
+                                    <button onclick="adjustInputGrams('${f.id}', 25)" class="px-2 py-1 bg-gray-50 hover:bg-gray-200 text-gray-700 text-xs font-black">+</button>
+                                </div>
+                                <span class="text-xs text-gray-600 font-bold">g</span>
+                                <button onclick="addWithGrams('${f.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition shadow-sm whitespace-nowrap">
+                                    <span>➕ ใส่จาน</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (filtered.length > 50) {
+                html += `<p class="text-center text-xs text-gray-400 py-2">แสดง 50 จากทั้งหมด ${filtered.length.toLocaleString()} รายการ (พิมพ์คำค้นหาเพิ่มเติมได้ครับ)</p>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // ==========================================
+        // Modal รายละเอียดโภชนาการฉบับเต็ม (Full Nutrition Facts)
+        // ==========================================
+        let currentModalFood = null;
+
+        window.openNutritionFactsModal = function(foodId) {
+            const food = allFoods1306.find(x => x.id === foodId);
+            if (!food) return;
+            currentModalFood = food;
+
+            const modal = document.getElementById('nutrition_facts_modal');
+            const title = document.getElementById('nft_title');
+            const en = document.getElementById('nft_en');
+            const group = document.getElementById('nft_group');
+            const btnAdd = document.getElementById('nft_btn_add');
+
+            title.innerText = food.name;
+            en.innerText = food.en || food.name_en || '';
+            group.innerText = food.group ? `${food.group} (รหัส: ${food.id} | กลุ่ม ${food.gid})` : `รหัสอาหาร: ${food.id} | กลุ่ม: ${food.gid}`;
+            
+            btnAdd.onclick = () => {
+                const inp = document.getElementById('nft_grams_input');
+                const grams = inp ? (parseFloat(inp.value) || 100) : 100;
+                addWithGrams(food.id, grams);
+                closeNutritionFactsModal();
+            };
+
+            renderModalNftBody(100);
+            modal.classList.remove('hidden');
+        };
+
+        window.changeModalNftGrams = function(delta) {
+            const inp = document.getElementById('nft_grams_input');
+            if (!inp) return;
+            let current = parseFloat(inp.value) || 100;
+            current = Math.max(5, Math.min(2000, current + delta));
+            inp.value = current;
+            renderModalNftBody(current);
+        };
+
+        window.recalcNftValues = function() {
+            const inp = document.getElementById('nft_grams_input');
+            const grams = inp ? (parseFloat(inp.value) || 100) : 100;
+            renderModalNftBody(grams);
+        };
+
+        function renderModalNftBody(grams) {
+            const body = document.getElementById('nft_body');
+            const food = currentModalFood;
+            if (!body || !food) return;
+
+            const ratio = (grams || 100) / 100;
+            const calc = (val, decimals = 0) => {
+                if (val === undefined || val === null || val === '') return 0;
+                const num = Math.abs(parseFloat(val)) || 0;
+                const res = num * ratio;
+                return decimals === 0 ? Math.round(res) : (Math.round(res * Math.pow(10, decimals)) / Math.pow(10, decimals)).toFixed(decimals);
+            };
+
+            body.innerHTML = `
+                <!-- ปริมาณและพลังงานตามน้ำหนักที่ระบุ -->
+                <div class="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div>
+                        <div class="text-[11px] text-indigo-950 font-bold">ระบุน้ำหนักที่ต้องการคำนวณ:</div>
+                        <div class="flex items-center gap-1.5 mt-1">
+                            <div class="flex items-center border border-indigo-300 rounded-lg bg-white overflow-hidden shadow-xs">
+                                <button onclick="changeModalNftGrams(-25)" class="px-2.5 py-0.5 bg-gray-50 hover:bg-gray-200 text-gray-700 font-black">-</button>
+                                <input type="number" id="nft_grams_input" value="${grams}" min="1" max="2000" step="10" 
+                                       oninput="recalcNftValues()" 
+                                       class="w-16 text-center font-black text-xs py-0.5 text-indigo-950 focus:outline-none">
+                                <button onclick="changeModalNftGrams(25)" class="px-2.5 py-0.5 bg-gray-50 hover:bg-gray-200 text-gray-700 font-black">+</button>
+                            </div>
+                            <span class="text-xs text-indigo-950 font-bold">กรัม</span>
+                        </div>
+                    </div>
+                    <div class="text-left sm:text-right">
+                        <div class="text-2xl font-black text-indigo-700">${calc(food.kcal, 0)} kcal</div>
+                        <div class="text-[10px] text-gray-500">พลังงานสำหรับ ${grams} กรัม</div>
+                    </div>
+                </div>
+
+                <!-- สารอาหารหลัก (Macronutrients) -->
+                <div>
+                    <h5 class="font-bold text-gray-800 text-xs mb-1.5 pb-1 border-b border-gray-200 flex items-center gap-1">
+                        <span>🍱 สารอาหารหลัก (Macronutrients)</span>
+                    </h5>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                        <div class="bg-gray-50 p-2 rounded-lg border border-gray-200">
+                            <div class="text-gray-400 text-[10px]">คาร์โบไฮเดรต</div>
+                            <div class="font-bold text-green-700">${calc(food.c, 1)} g</div>
+                            <div class="text-[9px] text-gray-400">น้ำตาล: ${calc(food.sugar, 1)}g / ใย: ${calc(food.fiber, 1)}g</div>
+                        </div>
+                        <div class="bg-gray-50 p-2 rounded-lg border border-gray-200">
+                            <div class="text-gray-400 text-[10px]">โปรตีน</div>
+                            <div class="font-bold text-red-700">${calc(food.p, 1)} g</div>
+                        </div>
+                        <div class="bg-gray-50 p-2 rounded-lg border border-gray-200">
+                            <div class="text-gray-400 text-[10px]">ไขมัน</div>
+                            <div class="font-bold text-yellow-700">${calc(food.f, 1)} g</div>
+                            <div class="text-[9px] text-gray-400">คอเลสเตอรอล: ${calc(food.chol, 0)}mg</div>
+                        </div>
+                        <div class="bg-gray-50 p-2 rounded-lg border border-gray-200">
+                            <div class="text-gray-400 text-[10px]">โซเดียม</div>
+                            <div class="font-bold text-gray-800">${calc(food.na, 0)} mg</div>
+                            <div class="text-[9px] text-gray-400">น้ำ: ${calc(food.water, 1)}g</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- แร่ธาตุ (Minerals) -->
+                <div>
+                    <h5 class="font-bold text-gray-800 text-xs mb-1.5 pb-1 border-b border-gray-200 flex items-center gap-1">
+                        <span>🪨 แร่ธาตุ (Minerals)</span>
+                    </h5>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
+                        <div class="p-1.5 bg-blue-50/50 rounded border border-blue-100 flex justify-between">
+                            <span class="text-gray-600">แคลเซียม (Ca):</span>
+                            <b class="text-blue-800">${calc(food.ca, 0)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-red-50/50 rounded border border-red-100 flex justify-between">
+                            <span class="text-gray-600">ธาตุเหล็ก (Fe):</span>
+                            <b class="text-red-800">${calc(food.fe, 1)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-purple-50/50 rounded border border-purple-100 flex justify-between">
+                            <span class="text-gray-600">โพแทสเซียม (K):</span>
+                            <b class="text-purple-800">${calc(food.k, 0)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">ฟอสฟอรัส (P):</span>
+                            <b class="text-gray-800">${calc(food.p_min, 0)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">แมกนีเซียม (Mg):</span>
+                            <b class="text-gray-800">${calc(food.mg, 0)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">สังกะสี (Zn):</span>
+                            <b class="text-gray-800">${calc(food.zn, 1)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">ทองแดง (Cu):</span>
+                            <b class="text-gray-800">${calc(food.cu, 2)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">ไอโอดีน (I):</span>
+                            <b class="text-gray-800">${calc(food.i, 0)} µg</b>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- วิตามิน (Vitamins) -->
+                <div>
+                    <h5 class="font-bold text-gray-800 text-xs mb-1.5 pb-1 border-b border-gray-200 flex items-center gap-1">
+                        <span>🍊 วิตามิน (Vitamins)</span>
+                    </h5>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
+                        <div class="p-1.5 bg-orange-50/50 rounded border border-orange-100 flex justify-between">
+                            <span class="text-gray-600">วิตามินซี (C):</span>
+                            <b class="text-orange-800">${calc(food.vit_c, 0)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-amber-50/50 rounded border border-amber-100 flex justify-between">
+                            <span class="text-gray-600">วิตามินเอ (A RAE):</span>
+                            <b class="text-amber-800">${calc(food.vit_a, 0)} µg</b>
+                        </div>
+                        <div class="p-1.5 bg-green-50/50 rounded border border-green-100 flex justify-between">
+                            <span class="text-gray-600">โฟเลต (Folate):</span>
+                            <b class="text-green-800">${calc(food.folate, 0)} µg</b>
+                        </div>
+                        <div class="p-1.5 bg-yellow-50/50 rounded border border-yellow-100 flex justify-between">
+                            <span class="text-gray-600">เบต้าแคโรทีน:</span>
+                            <b class="text-yellow-800">${calc(food.beta, 0)} µg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">วิตามิน บี 1:</span>
+                            <b class="text-gray-800">${calc(food.b1, 2)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">วิตามิน บี 2:</span>
+                            <b class="text-gray-800">${calc(food.b2, 2)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">ไนอะซิน (B3):</span>
+                            <b class="text-gray-800">${calc(food.b3, 1)} mg</b>
+                        </div>
+                        <div class="p-1.5 bg-gray-50 rounded border border-gray-200 flex justify-between">
+                            <span class="text-gray-600">วิตามินอี (E):</span>
+                            <b class="text-gray-800">${calc(food.vit_e, 1)} mg</b>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.closeNutritionFactsModal = function() {
+            const modal = document.getElementById('nutrition_facts_modal');
+            if (modal) modal.classList.add('hidden');
+        };
+
+        window.removeFromPlate = function(foodId) {
+            myPlate = myPlate.filter(x => x.id !== foodId);
+            renderMyPlate();
+        };
+
+        window.clearMyPlate = function() {
+            myPlate = [];
+            renderMyPlate();
+        };
+
+        window.stepPlateWeight = function(foodId, delta) {
+            const item = myPlate.find(x => x.id === foodId);
+            if (!item) return;
+            item.weight_g = Math.max(5, Math.min(2000, (item.weight_g || 100) + delta));
+            renderMyPlate();
+        };
+
+        window.setPlateWeight = function(foodId, val) {
+            const item = myPlate.find(x => x.id === foodId);
+            if (!item) return;
+            const parsed = parseFloat(val);
+            if (isNaN(parsed) || parsed <= 0) {
+                removeFromPlate(foodId);
+                return;
+            }
+            item.weight_g = Math.max(1, Math.min(2000, parsed));
+            renderMyPlate();
+        };
+
+        function renderMyPlate() {
+            const container = document.getElementById('my_plate_items');
+            if (!container) return;
+
+            const countBadge = document.getElementById('plate_items_badge');
+            const mobileBadge = document.getElementById('mobile_plate_badge');
+            const mobileBarKcal = document.getElementById('mobile_bar_kcal');
+            const mobileBarCount = document.getElementById('mobile_bar_count');
+
+            if (countBadge) countBadge.innerText = myPlate.length;
+            if (mobileBadge) {
+                mobileBadge.innerText = myPlate.length;
+                mobileBadge.classList.toggle('hidden', myPlate.length === 0);
+            }
+            if (mobileBarCount) mobileBarCount.innerText = `(${myPlate.length} รายการ)`;
+
+            if (myPlate.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8 text-xs">ยังไม่มีอาหารในจาน<br>กดปุ่ม ➕ จากรายการค้นหาเพื่อเพิ่ม</p>';
+                if (mobileBarKcal) mobileBarKcal.innerText = '0 kcal';
+                updatePlateSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                return;
+            }
+
+            let html = '';
+            let totalWeight = 0;
+            let totalKcal = 0, totalC = 0, totalP = 0, totalF = 0;
+            let totalNa = 0, totalK = 0, totalCa = 0, totalFe = 0, totalVitC = 0, totalFiber = 0;
+
+            myPlate.forEach(item => {
+                const weight = item.weight_g || 100;
+                const ratio = weight / 100;
+
+                const itemKcal = Math.round((Math.abs(item.kcal || 0)) * ratio);
+                const itemC = Math.round((Math.abs(item.c || 0)) * ratio * 10) / 10;
+                const itemP = Math.round((Math.abs(item.p || 0)) * ratio * 10) / 10;
+                const itemF = Math.round((Math.abs(item.f || 0)) * ratio * 10) / 10;
+                const itemNa = Math.round((Math.abs(item.na || 0)) * ratio);
+
+                totalWeight += weight;
+                totalKcal += itemKcal;
+                totalC += itemC;
+                totalP += itemP;
+                totalF += itemF;
+
+                totalNa += itemNa;
+                totalK += Math.round((Math.abs(item.k || 0)) * ratio);
+                totalCa += Math.round((Math.abs(item.ca || 0)) * ratio);
+                totalFe += Math.round((Math.abs(item.fe || 0)) * ratio * 10) / 10;
+                totalVitC += Math.round((Math.abs(item.vit_c || 0)) * ratio);
+                totalFiber += Math.round((Math.abs(item.fiber || 0)) * ratio * 10) / 10;
+
+                html += `
+                    <div class="bg-white p-2.5 rounded-xl border border-gray-200 shadow-2xs space-y-1.5 text-xs">
+                        <div class="flex justify-between items-start gap-1">
+                            <div class="font-bold text-gray-800 text-xs leading-tight min-w-0 pr-1 truncate" title="${item.name}">${item.name}</div>
+                            <button onclick="removeFromPlate('${item.id}')" class="text-gray-400 hover:text-red-500 font-bold px-1 text-sm leading-none shrink-0" title="ลบออกจากจาน">&times;</button>
+                        </div>
+                        
+                        <!-- Weight Stepper -->
+                        <div class="flex items-center justify-between gap-1 text-[11px] bg-indigo-50/50 p-1.5 rounded-lg border border-indigo-100">
+                            <span class="text-indigo-900 font-semibold">น้ำหนัก:</span>
+                            <div class="flex items-center gap-1">
+                                <button onclick="stepPlateWeight('${item.id}', -25)" class="w-5 h-5 rounded bg-white border border-gray-300 hover:bg-gray-100 font-bold text-gray-700 flex items-center justify-center text-xs shadow-xs">-</button>
+                                <input type="number" value="${weight}" onchange="setPlateWeight('${item.id}', this.value)" 
+                                       class="w-14 text-center font-bold text-xs py-0.5 border border-indigo-200 rounded bg-white text-indigo-950">
+                                <span class="text-gray-500 text-[10px]">g</span>
+                                <button onclick="stepPlateWeight('${item.id}', 25)" class="w-5 h-5 rounded bg-white border border-gray-300 hover:bg-gray-100 font-bold text-gray-700 flex items-center justify-center text-xs shadow-xs">+</button>
+                                <button onclick="stepPlateWeight('${item.id}', 50)" class="px-1 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold hover:bg-indigo-200">+50g</button>
+                            </div>
+                        </div>
+
+                        <!-- Calculated Nutrition for this weight -->
+                        <div class="flex justify-between text-[11px] text-gray-600 pt-0.5">
+                            <span class="font-black text-blue-700">${itemKcal} kcal</span>
+                            <span>C: <b class="text-green-700">${itemC}</b>g</span>
+                            <span>P: <b class="text-red-700">${itemP}</b>g</span>
+                            <span>F: <b class="text-yellow-700">${itemF}</b>g</span>
+                            ${itemNa > 0 ? `<span class="text-gray-500 text-[10px]">Na:${itemNa}mg</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            if (mobileBarKcal) mobileBarKcal.innerText = `${Math.round(totalKcal)} kcal`;
+            updatePlateSummary(totalWeight, totalKcal, totalC, totalP, totalF, totalNa, totalK, totalCa, totalFe, totalVitC, totalFiber);
+        }
+
+        function updatePlateSummary(weight, kcal, c, p, f, na, k, ca, fe, vitc, fiber) {
+            const elWeight = document.getElementById('plate_total_weight');
+            const elKcal = document.getElementById('plate_total_kcal');
+            const elTarget = document.getElementById('plate_target_kcal');
+            const elC = document.getElementById('plate_total_c');
+            const elP = document.getElementById('plate_total_p');
+            const elF = document.getElementById('plate_total_f');
+
+            const elNa = document.getElementById('plate_total_na');
+            const elK = document.getElementById('plate_total_k');
+            const elCa = document.getElementById('plate_total_ca');
+            const elFe = document.getElementById('plate_total_fe');
+            const elVitc = document.getElementById('plate_total_vitc');
+            const elFiber = document.getElementById('plate_total_fiber');
+
+            if (elWeight) elWeight.innerText = `${Math.round(weight)} กรัม`;
+            if (elKcal) elKcal.innerText = `${Math.round(kcal)} kcal`;
+            if (elTarget) elTarget.innerText = `${Math.round(currentTargetKcal || 0)} kcal`;
+            if (elC) elC.innerText = Math.round(c);
+            if (elP) elP.innerText = Math.round(p);
+            if (elF) elF.innerText = Math.round(f);
+
+            if (elNa) elNa.innerText = Math.round(na || 0);
+            if (elK) elK.innerText = Math.round(k || 0);
+            if (elCa) elCa.innerText = Math.round(ca || 0);
+            if (elFe) elFe.innerText = (Math.round((fe || 0) * 10) / 10).toFixed(1);
+            if (elVitc) elVitc.innerText = Math.round(vitc || 0);
+            if (elFiber) elFiber.innerText = (Math.round((fiber || 0) * 10) / 10).toFixed(1);
+        }
+
+        // ==========================================
+        // ระบบคลังเมนูอาหาร (My Custom Dishes) & Google Sheets Sync
+        // ==========================================
+
+        function loadCustomDishesFromStorage() {
+            try {
+                const saved = localStorage.getItem('recipe_custom_dishes');
+                if (saved) {
+                    myCustomDishes = JSON.parse(saved);
+                }
+            } catch(e) {
+                console.warn('Could not load custom dishes from localStorage:', e);
+                myCustomDishes = [];
+            }
+            updateDishesBadges();
+        }
+
+        function saveCustomDishesToStorage() {
+            try {
+                localStorage.setItem('recipe_custom_dishes', JSON.stringify(myCustomDishes));
+            } catch(e) {
+                console.warn('Could not save custom dishes to localStorage:', e);
+            }
+            updateDishesBadges();
+        }
+
+        function updateDishesBadges() {
+            const topBadge = document.getElementById('top_dishes_badge');
+            const tabBadge = document.getElementById('tab_mydishes_badge');
+            const countBadge = document.getElementById('mydishes_count_badge');
+            const count = myCustomDishes.length;
+            if (topBadge) topBadge.innerText = count;
+            if (tabBadge) tabBadge.innerText = count;
+            if (countBadge) countBadge.innerText = `${count} เมนู`;
+        }
+
+        window.openSaveDishModal = function() {
+            if (myPlate.length === 0) {
+                alert("กรุณาเลือกวัตถุดิบลงในจานอย่างน้อย 1 รายการก่อนบันทึกเป็นเมนูอาหารครับ");
+                return;
+            }
+
+            let totalKcal = 0, totalC = 0, totalP = 0, totalF = 0;
+            myPlate.forEach(item => {
+                const ratio = (item.weight_g || 100) / 100;
+                totalKcal += Math.round((Math.abs(item.kcal || 0)) * ratio);
+                totalC += (Math.abs(item.c || 0)) * ratio;
+                totalP += (Math.abs(item.p || 0)) * ratio;
+                totalF += (Math.abs(item.f || 0)) * ratio;
+            });
+
+            const elKcal = document.getElementById('save_dish_preview_kcal');
+            const elC = document.getElementById('save_dish_preview_c');
+            const elP = document.getElementById('save_dish_preview_p');
+            const elF = document.getElementById('save_dish_preview_f');
+            const elIngs = document.getElementById('save_dish_preview_ingredients');
+
+            if (elKcal) elKcal.innerText = `${Math.round(totalKcal)} kcal`;
+            if (elC) elC.innerText = (Math.round(totalC * 10) / 10).toFixed(1);
+            if (elP) elP.innerText = (Math.round(totalP * 10) / 10).toFixed(1);
+            if (elF) elF.innerText = (Math.round(totalF * 10) / 10).toFixed(1);
+
+            const names = myPlate.map(x => `${x.name} (${x.weight_g || 100}g)`).join(' + ');
+            if (elIngs) elIngs.innerText = `วัตถุดิบ: ${names}`;
+
+            const nameInp = document.getElementById('save_dish_name');
+            if (nameInp && !nameInp.value) {
+                if (myPlate.length === 1) nameInp.value = myPlate[0].name;
+                else nameInp.value = `เมนูรวม ${myPlate.length} วัตถุดิบ`;
+            }
+
+            const dialog = document.getElementById('save_dish_dialog');
+            if (dialog) dialog.classList.remove('hidden');
+        };
+
+        window.closeSaveDishModal = function() {
+            const dialog = document.getElementById('save_dish_dialog');
+            if (dialog) dialog.classList.add('hidden');
+        };
+
+        window.confirmSaveCustomDish = function() {
+            const nameInp = document.getElementById('save_dish_name');
+            const catInp = document.getElementById('save_dish_category');
+            const servingsInp = document.getElementById('save_dish_servings');
+            const noteInp = document.getElementById('save_dish_note');
+            const cloudCheck = document.getElementById('save_dish_cloud_sync');
+
+            const name = nameInp ? nameInp.value.trim() : '';
+            if (!name) {
+                alert('กรุณาระบุชื่อเมนูอาหารครับ');
+                if (nameInp) nameInp.focus();
+                return;
+            }
+
+            const category = catInp ? catInp.value : 'จานเดียว';
+            const servings = Math.max(1, parseInt(servingsInp ? servingsInp.value : 1) || 1);
+            const note = noteInp ? noteInp.value.trim() : '';
+
+            let totalWeight = 0;
+            let totalKcal = 0, totalC = 0, totalP = 0, totalF = 0;
+            let totalNa = 0, totalK = 0, totalCa = 0, totalFe = 0, totalVitC = 0, totalFiber = 0;
+
+            const ingredients = myPlate.map(item => {
+                const weight = item.weight_g || 100;
+                const ratio = weight / 100;
+                const k = Math.round((Math.abs(item.kcal || 0)) * ratio);
+                const c = Math.round((Math.abs(item.c || 0)) * ratio * 10) / 10;
+                const p = Math.round((Math.abs(item.p || 0)) * ratio * 10) / 10;
+                const f = Math.round((Math.abs(item.f || 0)) * ratio * 10) / 10;
+                const na = Math.round((Math.abs(item.na || 0)) * ratio);
+
+                totalWeight += weight;
+                totalKcal += k;
+                totalC += c;
+                totalP += p;
+                totalF += f;
+                totalNa += na;
+                totalK += Math.round((Math.abs(item.k || 0)) * ratio);
+                totalCa += Math.round((Math.abs(item.ca || 0)) * ratio);
+                totalFe += Math.round((Math.abs(item.fe || 0)) * ratio * 10) / 10;
+                totalVitC += Math.round((Math.abs(item.vit_c || 0)) * ratio);
+                totalFiber += Math.round((Math.abs(item.fiber || 0)) * ratio * 10) / 10;
+
+                return {
+                    id: item.id,
+                    name: item.name,
+                    weight_g: weight,
+                    kcal: k,
+                    c: c,
+                    p: p,
+                    f: f,
+                    na: na
+                };
+            });
+
+            const newDish = {
+                dish_id: 'dish_' + Date.now(),
+                name: name,
+                category: category,
+                servings: servings,
+                total_weight_g: totalWeight,
+                nutrition: {
+                    kcal: Math.round(totalKcal),
+                    carb: Math.round(totalC * 10) / 10,
+                    protein: Math.round(totalP * 10) / 10,
+                    fat: Math.round(totalF * 10) / 10,
+                    sodium: Math.round(totalNa),
+                    potassium: Math.round(totalK),
+                    calcium: Math.round(totalCa),
+                    iron: Math.round(totalFe * 10) / 10,
+                    vit_c: Math.round(totalVitC),
+                    fiber: Math.round(totalFiber * 10) / 10
+                },
+                per_serving: {
+                    kcal: Math.round(totalKcal / servings),
+                    carb: Math.round((totalC / servings) * 10) / 10,
+                    protein: Math.round((totalP / servings) * 10) / 10,
+                    fat: Math.round((totalF / servings) * 10) / 10,
+                    sodium: Math.round(totalNa / servings)
+                },
+                ingredients: ingredients,
+                note: note,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            myCustomDishes.unshift(newDish);
+            saveCustomDishesToStorage();
+
+            if (cloudCheck && cloudCheck.checked) {
+                saveDishToCloud(newDish);
+            }
+
+            closeSaveDishModal();
+            showPlateToast(`✅ บันทึกเมนู "${name}" สำเร็จแล้ว!`);
+            setModalTab('mydishes');
+        };
+
+        window.renderMyDishes = function() {
+            const container = document.getElementById('my_dishes_list');
+            if (!container) return;
+
+            updateDishesBadges();
+
+            let filtered = myCustomDishes.filter(d => {
+                if (myDishesCategoryFilter !== 'all' && d.category !== myDishesCategoryFilter) {
+                    return false;
+                }
+                if (myDishesSearchQuery) {
+                    const matchName = d.name && d.name.toLowerCase().includes(myDishesSearchQuery);
+                    const matchCat = d.category && d.category.toLowerCase().includes(myDishesSearchQuery);
+                    const matchNote = d.note && d.note.toLowerCase().includes(myDishesSearchQuery);
+                    const matchIngs = d.ingredients && d.ingredients.some(x => x.name.toLowerCase().includes(myDishesSearchQuery));
+                    if (!matchName && !matchCat && !matchNote && !matchIngs) return false;
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="py-12 text-center text-gray-400 space-y-3">
+                        <div class="text-4xl">🍳</div>
+                        <div class="text-sm font-bold text-gray-600">ยังไม่มีเมนูที่บันทึกไว้</div>
+                        <p class="text-xs text-gray-400 max-w-sm mx-auto">
+                            คุณสามารถเลือกวัตถุดิบจากแท็บ "ค้นหาอาหาร" แล้วกดแท็บ "ประกอบเมนู (Dish Builder)" เพื่อชั่งน้ำหนักและกด "บันทึกเมนู" ครับ
+                        </p>
+                        <button onclick="setModalTab('search')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-xl transition shadow">
+                            🔍 เริ่มเลือกวัตถุดิบเลย
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">';
+            filtered.forEach(dish => {
+                const n = dish.nutrition || {};
+                const ings = dish.ingredients || [];
+
+                html += `
+                    <div class="bg-white p-3.5 rounded-2xl border border-gray-200 hover:border-purple-300 shadow-2xs space-y-2.5 transition flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start gap-1.5">
+                                <div>
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span class="font-black text-gray-900 text-sm sm:text-base leading-tight">${dish.name}</span>
+                                        <span class="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-full">${dish.category || 'ทั่วไป'}</span>
+                                        <span class="bg-gray-100 text-gray-600 text-[10px] font-medium px-1.5 py-0.5 rounded">${dish.servings || 1} ที่</span>
+                                    </div>
+                                    ${dish.note ? `<p class="text-[11px] text-gray-500 mt-1 italic leading-tight">💡 ${dish.note}</p>` : ''}
+                                </div>
+                                <span class="bg-indigo-50 border border-indigo-100 text-indigo-700 font-black text-xs px-2.5 py-1 rounded-xl shrink-0">
+                                    ${n.kcal || 0} kcal
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-4 gap-1.5 pt-2 text-center text-xs">
+                                <div class="bg-green-50 p-1.5 rounded-lg border border-green-100">
+                                    <div class="text-[9px] text-gray-500">คาร์บ</div>
+                                    <div class="font-bold text-green-700 text-xs">${n.carb || 0}g</div>
+                                </div>
+                                <div class="bg-red-50 p-1.5 rounded-lg border border-red-100">
+                                    <div class="text-[9px] text-gray-500">โปรตีน</div>
+                                    <div class="font-bold text-red-700 text-xs">${n.protein || 0}g</div>
+                                </div>
+                                <div class="bg-yellow-50 p-1.5 rounded-lg border border-yellow-100">
+                                    <div class="text-[9px] text-gray-500">ไขมัน</div>
+                                    <div class="font-bold text-yellow-700 text-xs">${n.fat || 0}g</div>
+                                </div>
+                                <div class="bg-gray-50 p-1.5 rounded-lg border border-gray-200">
+                                    <div class="text-[9px] text-gray-500">โซเดียม</div>
+                                    <div class="font-bold text-gray-700 text-xs">${n.sodium || 0}mg</div>
+                                </div>
+                            </div>
+
+                            <details class="text-[10px] text-gray-500 pt-1.5">
+                                <summary class="cursor-pointer text-indigo-600 hover:underline font-semibold flex items-center justify-between">
+                                    <span>🥗 ดูวัตถุดิบ (${ings.length} อย่าง, รวม ${dish.total_weight_g || 0}g)</span>
+                                    <span class="text-[9px]">▼</span>
+                                </summary>
+                                <div class="p-2 bg-gray-50 rounded-lg border border-gray-100 mt-1 space-y-0.5 text-[11px] text-gray-700">
+                                    ${ings.map(i => `<div class="flex justify-between"><span>• ${i.name}</span><span class="text-gray-500 font-semibold">${i.weight_g}g (${i.kcal} kcal)</span></div>`).join('')}
+                                </div>
+                            </details>
+                        </div>
+
+                        <div class="pt-2 border-t border-gray-100 space-y-2">
+                            <div class="flex items-center justify-between gap-1 text-[11px]">
+                                <span class="font-bold text-gray-600 shrink-0">1-Click ใส่มื้อ:</span>
+                                <div class="flex items-center gap-1 flex-wrap justify-end">
+                                    <button onclick="addDishToMeal('${dish.dish_id}', 'breakfast')" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg font-bold text-[10px] transition shadow-2xs flex items-center gap-0.5">
+                                        <span>🌅 เช้า</span>
+                                    </button>
+                                    <button onclick="addDishToMeal('${dish.dish_id}', 'lunch')" class="px-2 py-1 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-800 rounded-lg font-bold text-[10px] transition shadow-2xs flex items-center gap-0.5">
+                                        <span>☀️ กลางวัน</span>
+                                    </button>
+                                    <button onclick="addDishToMeal('${dish.dish_id}', 'snack')" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg font-bold text-[10px] transition shadow-2xs flex items-center gap-0.5">
+                                        <span>☕ ว่าง</span>
+                                    </button>
+                                    <button onclick="addDishToMeal('${dish.dish_id}', 'dinner')" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg font-bold text-[10px] transition shadow-2xs flex items-center gap-0.5">
+                                        <span>🌙 เย็น</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center text-[10px] pt-1 text-gray-400 border-t border-gray-50">
+                                <div class="flex gap-2">
+                                    <button onclick="loadDishToBuilder('${dish.dish_id}')" class="text-indigo-600 hover:text-indigo-800 font-bold hover:underline flex items-center gap-0.5">
+                                        <span>🍳 โหลดลงจาน/ปรุงต่อ</span>
+                                    </button>
+                                </div>
+                                <button onclick="deleteCustomDish('${dish.dish_id}')" class="text-red-400 hover:text-red-600 font-semibold hover:underline">
+                                    🗑️ ลบเมนู
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        };
+
+        window.filterMyDishesCategory = function(cat, btn) {
+            myDishesCategoryFilter = cat;
+            document.querySelectorAll('#mydishes_category_pills .mydish-cat-pill').forEach(b => {
+                b.className = "mydish-cat-pill px-3 py-1 rounded-full bg-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-gray-300";
+            });
+            btn.className = "mydish-cat-pill active px-3 py-1 rounded-full bg-purple-600 text-white font-medium whitespace-nowrap shadow-xs";
+            renderMyDishes();
+        };
+
+        window.onMyDishesSearch = function(val) {
+            myDishesSearchQuery = (val || '').trim().toLowerCase();
+            renderMyDishes();
+        };
+
+        window.loadDishToBuilder = function(dishId) {
+            const dish = myCustomDishes.find(x => x.dish_id === dishId);
+            if (!dish) return;
+
+            myPlate = [];
+            (dish.ingredients || []).forEach(ing => {
+                const fullItem = allFoods1306.find(x => x.id === ing.id) || ing;
+                myPlate.push({
+                    ...fullItem,
+                    weight_g: ing.weight_g || 100
+                });
+            });
+
+            setModalTab('plate');
+            renderMyPlate();
+            showPlateToast(`🍳 โหลดสูตร "${dish.name}" เข้าสู่ Dish Builder แล้ว`);
+        };
+
+        window.deleteCustomDish = function(dishId) {
+            const dish = myCustomDishes.find(x => x.dish_id === dishId);
+            const dishName = dish ? dish.name : 'เมนูนี้';
+            if (!confirm(`คุณต้องการลบ "${dishName}" หรือไม่?`)) return;
+
+            myCustomDishes = myCustomDishes.filter(x => x.dish_id !== dishId);
+            saveCustomDishesToStorage();
+            deleteDishFromCloud(dishId);
+            renderMyDishes();
+            showPlateToast(`ลบ "${dishName}" เรียบร้อยแล้ว`);
+        };
+
+        // ==========================================
+        // ระบบ Cloud Google Sheets Sync
+        // ==========================================
+        window.saveDishToCloud = function(dish) {
+            try {
+                fetch(GAS_API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'save_dish',
+                        dish: dish
+                    })
+                }).then(() => {
+                    console.log('Saved dish to GAS via POST');
+                }).catch(err => {
+                    console.warn('POST failed, fallback to GET query parameter:', err);
+                    const url = `${GAS_API_URL}?action=save_dish&payload=${encodeURIComponent(JSON.stringify(dish))}`;
+                    fetch(url, { mode: 'no-cors' });
+                });
+            } catch(e) {
+                console.warn('Cloud sync error:', e);
+            }
+        };
+
+        window.deleteDishFromCloud = function(dishId) {
+            try {
+                fetch(GAS_API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'delete_dish',
+                        dish_id: dishId
+                    })
+                }).catch(() => {
+                    const url = `${GAS_API_URL}?action=delete_dish&dish_id=${encodeURIComponent(dishId)}`;
+                    fetch(url, { mode: 'no-cors' });
+                });
+            } catch(e) {}
+        };
+
+        window.fetchDishesFromCloud = function(silent = false) {
+            const btn = document.getElementById('btn_sync_cloud');
+            const icon = document.getElementById('cloud_sync_icon');
+            if (icon) icon.innerText = '⏳';
+            if (btn) btn.disabled = true;
+
+            fetch(`${GAS_API_URL}?action=get_dishes`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.status === 'success' && Array.isArray(data.dishes)) {
+                        const cloudDishes = data.dishes;
+                        cloudDishes.forEach(cd => {
+                            const idx = myCustomDishes.findIndex(x => x.dish_id === cd.dish_id);
+                            if (idx >= 0) {
+                                myCustomDishes[idx] = cd;
+                            } else {
+                                myCustomDishes.push(cd);
+                            }
+                        });
+                        saveCustomDishesToStorage();
+                        renderMyDishes();
+                        if (!silent) showPlateToast(`☁️ ซิงค์จาก Google Sheets สำเร็จ (${cloudDishes.length} เมนู)`);
+                    } else {
+                        if (!silent) showPlateToast('⚠️ ดึงข้อมูลสำเร็จ แต่ไม่พบเมนูใน Cloud Sheets');
+                    }
+                })
+                .catch(err => {
+                    console.warn('Cloud fetch failed:', err);
+                    if (!silent) showPlateToast('⚠️ เชื่อมต่อ Google Sheets ไม่สำเร็จ ใช้ข้อมูลในเครื่องแทน');
+                })
+                .finally(() => {
+                    if (icon) icon.innerText = '☁️';
+                    if (btn) btn.disabled = false;
+                });
+        };
+
+        // ==========================================
+        // ระบบจัดสรรและติดตามมื้ออาหาร (Daily Meal Tracker)
+        // ==========================================
+        function loadDailyMealsFromStorage() {
+            try {
+                const saved = localStorage.getItem('recipe_daily_meals');
+                if (saved) {
+                    dailyMealLog = JSON.parse(saved);
+                }
+            } catch(e) {
+                dailyMealLog = { breakfast: [], lunch: [], snack: [], dinner: [] };
+            }
+        }
+
+        function saveDailyMealsToStorage() {
+            try {
+                localStorage.setItem('recipe_daily_meals', JSON.stringify(dailyMealLog));
+            } catch(e) {}
+            renderDailyMealTracker();
+        }
+
+        window.openQuickAddMealModal = function(dishOrNull) {
+            pendingQuickAddDish = dishOrNull;
+            const titleEl = document.getElementById('quick_add_meal_dish_title');
+            if (titleEl) {
+                if (dishOrNull) {
+                    titleEl.innerText = `เมนู: ${dishOrNull.name} (${dishOrNull.nutrition ? dishOrNull.nutrition.kcal : 0} kcal)`;
+                } else {
+                    titleEl.innerText = `จานอาหารปัจจุบัน (${document.getElementById('plate_total_kcal').innerText})`;
+                }
+            }
+            const modal = document.getElementById('quick_add_meal_dialog');
+            if (modal) modal.classList.remove('hidden');
+        };
+
+        window.closeQuickAddMealModal = function() {
+            const modal = document.getElementById('quick_add_meal_dialog');
+            if (modal) modal.classList.add('hidden');
+            pendingQuickAddDish = null;
+        };
+
+        window.selectMealForAdd = function(mealType) {
+            if (pendingQuickAddDish) {
+                addDishToMeal(pendingQuickAddDish.dish_id, mealType);
+            } else {
+                addCurrentPlateToMeal(mealType);
+            }
+            closeQuickAddMealModal();
+        };
+
+        window.addDishToMeal = function(dishId, mealType) {
+            const dish = myCustomDishes.find(x => x.dish_id === dishId);
+            if (!dish) return;
+
+            if (!dailyMealLog[mealType]) dailyMealLog[mealType] = [];
+
+            const n = dish.nutrition || {};
+            dailyMealLog[mealType].push({
+                dish_id: dish.dish_id,
+                name: dish.name,
+                category: dish.category,
+                servings: 1,
+                weight_g: dish.total_weight_g || 0,
+                kcal: n.kcal || 0,
+                carb: n.carb || 0,
+                protein: n.protein || 0,
+                fat: n.fat || 0,
+                sodium: n.sodium || 0,
+                fiber: n.fiber || 0,
+                potassium: n.potassium || 0
+            });
+
+            saveDailyMealsToStorage();
+            const mealNames = { breakfast: 'มื้อเช้า', lunch: 'มื้อกลางวัน', snack: 'อาหารว่าง', dinner: 'มื้อเย็น' };
+            showPlateToast(`🍽️ เพิ่ม "${dish.name}" ลงใน ${mealNames[mealType] || mealType} แล้ว`);
+        };
+
+        window.addCurrentPlateToMeal = function(mealType) {
+            if (myPlate.length === 0) {
+                alert("ยังไม่มีอาหารในจานครับ");
+                return;
+            }
+
+            let totalWeight = 0;
+            let totalKcal = 0, totalC = 0, totalP = 0, totalF = 0, totalNa = 0, totalFiber = 0, totalK = 0;
+
+            myPlate.forEach(item => {
+                const weight = item.weight_g || 100;
+                const ratio = weight / 100;
+                totalWeight += weight;
+                totalKcal += Math.round((Math.abs(item.kcal || 0)) * ratio);
+                totalC += Math.round((Math.abs(item.c || 0)) * ratio * 10) / 10;
+                totalP += Math.round((Math.abs(item.p || 0)) * ratio * 10) / 10;
+                totalF += Math.round((Math.abs(item.f || 0)) * ratio * 10) / 10;
+                totalNa += Math.round((Math.abs(item.na || 0)) * ratio);
+                totalFiber += Math.round((Math.abs(item.fiber || 0)) * ratio * 10) / 10;
+                totalK += Math.round((Math.abs(item.k || 0)) * ratio);
+            });
+
+            const plateTitle = myPlate.length === 1 ? myPlate[0].name : `จานผสม (${myPlate.length} รายการ)`;
+
+            if (!dailyMealLog[mealType]) dailyMealLog[mealType] = [];
+            dailyMealLog[mealType].push({
+                dish_id: 'plate_' + Date.now(),
+                name: plateTitle,
+                category: 'จานด่วน',
+                servings: 1,
+                weight_g: totalWeight,
+                kcal: totalKcal,
+                carb: totalC,
+                protein: totalP,
+                fat: totalF,
+                sodium: totalNa,
+                fiber: totalFiber,
+                potassium: totalK
+            });
+
+            saveDailyMealsToStorage();
+            const mealNames = { breakfast: 'มื้อเช้า', lunch: 'มื้อกลางวัน', snack: 'อาหารว่าง', dinner: 'มื้อเย็น' };
+            showPlateToast(`🍽️ เพิ่มอาหารจากจานลงใน ${mealNames[mealType] || mealType} แล้ว`);
+        };
+
+        window.removeMealItem = function(mealType, idx) {
+            if (dailyMealLog[mealType] && dailyMealLog[mealType][idx] !== undefined) {
+                dailyMealLog[mealType].splice(idx, 1);
+                saveDailyMealsToStorage();
+            }
+        };
+
+        window.clearMeal = function(mealType) {
+            const mealNames = { breakfast: 'มื้อเช้า', lunch: 'มื้อกลางวัน', snack: 'อาหารว่าง', dinner: 'มื้อเย็น' };
+            if (confirm(`ล้างรายการใน ${mealNames[mealType] || mealType} ทั้งหมด?`)) {
+                dailyMealLog[mealType] = [];
+                saveDailyMealsToStorage();
+            }
+        };
+
+        window.clearAllMeals = function() {
+            if (confirm('คุณต้องการล้างบันทึกมื้ออาหารวันนี้ทั้งหมดหรือไม่?')) {
+                dailyMealLog = { breakfast: [], lunch: [], snack: [], dinner: [] };
+                saveDailyMealsToStorage();
+                showPlateToast('ล้างบันทึกมื้ออาหารวันนี้แล้ว');
+            }
+        };
+
+        window.renderDailyMealTracker = function() {
+            const grid = document.getElementById('daily_meals_grid');
+            if (!grid) return;
+
+            const mealConfigs = [
+                { key: 'breakfast', name: 'มื้อเช้า', en: 'Breakfast', icon: '🌅', color: 'amber', time: '07:00 - 08:30' },
+                { key: 'lunch', name: 'มื้อกลางวัน', en: 'Lunch', icon: '☀️', color: 'orange', time: '12:00 - 13:00' },
+                { key: 'snack', name: 'อาหารว่าง', en: 'Afternoon Snack', icon: '☕', color: 'emerald', time: '15:00 - 15:30' },
+                { key: 'dinner', name: 'มื้อเย็น', en: 'Dinner', icon: '🌙', color: 'indigo', time: '18:00 - 19:00' }
+            ];
+
+            let dayKcal = 0, dayC = 0, dayP = 0, dayF = 0, dayNa = 0, dayFiber = 0, dayK = 0;
+
+            let gridHtml = '';
+            mealConfigs.forEach(m => {
+                const items = dailyMealLog[m.key] || [];
+                let mKcal = 0, mC = 0, mP = 0, mF = 0;
+
+                items.forEach(it => {
+                    mKcal += (it.kcal || 0);
+                    mC += (it.carb || 0);
+                    mP += (it.protein || 0);
+                    mF += (it.fat || 0);
+                    dayNa += (it.sodium || 0);
+                    dayFiber += (it.fiber || 0);
+                    dayK += (it.potassium || 0);
+                });
+
+                dayKcal += mKcal;
+                dayC += mC;
+                dayP += mP;
+                dayF += mF;
+
+                let itemsListHtml = '';
+                if (items.length === 0) {
+                    itemsListHtml = `
+                        <div class="py-6 text-center text-gray-400 text-xs">
+                            <span>ยังไม่มีรายการในมื้อนี้</span>
+                        </div>
+                    `;
+                } else {
+                    items.forEach((it, idx) => {
+                        itemsListHtml += `
+                            <div class="p-2 bg-white rounded-xl border border-gray-100 shadow-2xs text-xs space-y-1">
+                                <div class="flex justify-between items-start gap-1">
+                                    <div class="font-bold text-gray-800 leading-tight truncate" title="${it.name}">
+                                        ${it.name}
+                                    </div>
+                                    <button onclick="removeMealItem('${m.key}', ${idx})" class="text-gray-400 hover:text-red-500 font-bold px-1 text-sm leading-none shrink-0" title="ลบ">&times;</button>
+                                </div>
+                                <div class="flex justify-between text-[11px] text-gray-600">
+                                    <span class="font-black text-indigo-700">${Math.round(it.kcal)} kcal</span>
+                                    <span>C:${Math.round(it.carb)} P:${Math.round(it.protein)} F:${Math.round(it.fat)}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                gridHtml += `
+                    <div class="bg-gray-50 p-3 sm:p-4 rounded-2xl border border-gray-200 flex flex-col justify-between shadow-2xs">
+                        <div class="space-y-2.5">
+                            <div class="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-lg">${m.icon}</span>
+                                    <div>
+                                        <h4 class="font-bold text-gray-900 text-sm leading-tight">${m.name}</h4>
+                                        <span class="text-[10px] text-gray-500 font-medium">🕒 ${m.time}</span>
+                                    </div>
+                                </div>
+                                <span class="bg-white border border-gray-200 text-indigo-900 font-black text-xs px-2.5 py-0.5 rounded-full shadow-2xs">
+                                    ${Math.round(mKcal)} kcal
+                                </span>
+                            </div>
+
+                            <div class="flex justify-between text-[10px] text-gray-500 bg-white px-2 py-1 rounded-lg border border-gray-100 font-medium">
+                                <span>คาร์บ: <b class="text-green-700 font-bold">${Math.round(mC)}g</b></span>
+                                <span>โปรตีน: <b class="text-red-700 font-bold">${Math.round(mP)}g</b></span>
+                                <span>ไขมัน: <b class="text-yellow-700 font-bold">${Math.round(mF)}g</b></span>
+                            </div>
+
+                            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-0.5 min-h-[70px]">
+                                ${itemsListHtml}
+                            </div>
+                        </div>
+
+                        <div class="pt-2.5 border-t border-gray-200 flex gap-1.5 mt-2">
+                            <button onclick="openModalWithTab('mydishes', '${m.key}')" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1 transition shadow-2xs">
+                                <span>➕ เพิ่มเมนู</span>
+                            </button>
+                            ${items.length > 0 ? `
+                                <button onclick="clearMeal('${m.key}')" class="px-2 py-1.5 bg-gray-200 hover:bg-red-100 hover:text-red-700 text-gray-600 rounded-xl text-xs font-bold transition" title="ล้างมื้อนี้">
+                                    ล้าง
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            grid.innerHTML = gridHtml;
+            updateDailyDashboard(dayKcal, dayC, dayP, dayF, dayNa, dayFiber, dayK);
+        };
+
+        function updateDailyDashboard(dayKcal, dayC, dayP, dayF, dayNa, dayFiber, dayK) {
+            const targetKcal = currentTargetKcal || 2000;
+            const targetC = targetMacros.c || Math.round((targetKcal * 0.5) / 4);
+            const targetP = targetMacros.p || Math.round((targetKcal * 0.2) / 4);
+            const targetF = targetMacros.f || Math.round((targetKcal * 0.3) / 9);
+
+            const elConsumedKcal = document.getElementById('daily_consumed_kcal');
+            const elTargetKcalDisplay = document.getElementById('daily_target_kcal_display');
+            const elPercent = document.getElementById('daily_kcal_percent');
+            const elBar = document.getElementById('daily_kcal_progress_bar');
+            const elWarning = document.getElementById('daily_kcal_warning');
+
+            const pct = targetKcal > 0 ? Math.round((dayKcal / targetKcal) * 100) : 0;
+
+            if (elConsumedKcal) elConsumedKcal.innerText = Math.round(dayKcal);
+            if (elTargetKcalDisplay) elTargetKcalDisplay.innerText = `${Math.round(targetKcal)} kcal`;
+            if (elPercent) elPercent.innerText = `${pct}%`;
+
+            if (elBar) {
+                elBar.style.width = `${Math.min(100, pct)}%`;
+                if (pct > 105) {
+                    elBar.className = "bg-red-600 h-3.5 rounded-full transition-all duration-500 shadow-sm";
+                    if (elWarning) elWarning.classList.remove('hidden');
+                } else if (pct >= 90) {
+                    elBar.className = "bg-green-600 h-3.5 rounded-full transition-all duration-500 shadow-sm";
+                    if (elWarning) elWarning.classList.add('hidden');
+                } else {
+                    elBar.className = "bg-indigo-600 h-3.5 rounded-full transition-all duration-500 shadow-sm";
+                    if (elWarning) elWarning.classList.add('hidden');
+                }
+            }
+
+            const elTotC = document.getElementById('daily_total_carb');
+            const elTarC = document.getElementById('daily_target_carb');
+            const elTotP = document.getElementById('daily_total_pro');
+            const elTarP = document.getElementById('daily_target_pro');
+            const elTotF = document.getElementById('daily_total_fat');
+            const elTarF = document.getElementById('daily_target_fat');
+
+            if (elTotC) elTotC.innerText = Math.round(dayC);
+            if (elTarC) elTarC.innerText = targetC;
+            if (elTotP) elTotP.innerText = Math.round(dayP);
+            if (elTarP) elTarP.innerText = targetP;
+            if (elTotF) elTotF.innerText = Math.round(dayF);
+            if (elTarF) elTarF.innerText = targetF;
+
+            const elTotNa = document.getElementById('daily_total_sodium');
+            const elNaBadge = document.getElementById('daily_sodium_badge');
+            const elTotFib = document.getElementById('daily_total_fiber');
+            const elTotK = document.getElementById('daily_total_potassium');
+
+            if (elTotNa) elTotNa.innerText = Math.round(dayNa);
+            if (elNaBadge) {
+                if (dayNa > 2000) {
+                    elNaBadge.innerText = "⚠️ เกินเกณฑ์สุขภาพ (>2,000)";
+                    elNaBadge.className = "text-[9px] text-red-600 font-bold";
+                } else {
+                    elNaBadge.innerText = "ปลอดภัย (≤2,000)";
+                    elNaBadge.className = "text-[9px] text-green-600 font-semibold";
+                }
+            }
+            if (elTotFib) elTotFib.innerText = (Math.round(dayFiber * 10) / 10).toFixed(1);
+            if (elTotK) elTotK.innerText = Math.round(dayK);
+        }
+
+        window.printDailyMealTracker = function() {
+            window.print();
+        };
+
+        // ==========================================
+        // ระบบจัดตารางอาหารอัจฉริยะ (AI Meal Planner)
+        // ==========================================
+        window.sendToBackend = async function() {
+            if (currentTargetKcal <= 0) {
+                alert("กรุณาเลือกเป้าหมายพลังงาน (Target Kcal) ก่อนครับ");
+                return;
+            }
+
+            const container = document.getElementById('ai_meal_plan_container');
+            const content = document.getElementById('ai_plan_content');
+            const btn = document.getElementById('btn_ai_plan');
+
+            container.classList.remove('hidden');
+            container.scrollIntoView({ behavior: 'smooth' });
+
+            // แสดง Loading State
+            content.innerHTML = `
+                <div class="py-12 text-center space-y-4">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent"></div>
+                    <h3 class="text-lg font-bold text-gray-800">AI Nutritionist กำลังออกแบบตารางอาหารใหม่...</h3>
+                    <p class="text-sm text-gray-500 max-w-md mx-auto">
+                        กำลังจัดสรรส่วนอาหาร (Food Exchange) และเลือกเมนูอาหารไทยให้ตรงตามเป้าหมาย <b>${Math.round(currentTargetKcal)} kcal</b> (C:${targetMacros.c}g / P:${targetMacros.p}g / F:${targetMacros.f}g)
+                    </p>
+                </div>
+            `;
+
+            if (btn) btn.disabled = true;
+
+            const selectedPortions = exchangeData.filter(x => x.val > 0).map(x => `${x.name} ${x.val} ส่วน (1 ส่วน = ${x.unit})`);
+            const profile = {
+                gender: els.gender ? els.gender.value : 'male',
+                age: els.age ? els.age.value : 30,
+                height: els.height ? els.height.value : 170,
+                weight: els.weight ? els.weight.value : 70
+            };
+
+            let mealPlanResult = null;
+
+            // 1. ลองเรียกผ่าน Google Apps Script Backend (ปลอดภัย เพราะ API Key ถูกซ่อนไว้ที่ฝั่ง Server)
+            try {
+                const gasUrl = `${GAS_API_URL}?action=generate_meal_plan&target_kcal=${currentTargetKcal}&carb=${targetMacros.c}&protein=${targetMacros.p}&fat=${targetMacros.f}&gender=${profile.gender}&age=${profile.age}&weight=${profile.weight}&height=${profile.height}&portions=${encodeURIComponent(selectedPortions.join(', '))}`;
+                const response = await fetch(gasUrl, { method: 'GET' });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success' && data.meal_plan) {
+                        mealPlanResult = data.meal_plan;
+                        // แนบตารางกระจายส่วนอาหารที่ถูกต้องตรงตามโควต้าจริงเสมอ
+                        if (!mealPlanResult.allocations) {
+                            const dynPlan = generateDynamicDietitianPlan(currentTargetKcal, targetMacros, exchangeData, profile);
+                            mealPlanResult.allocations = dynPlan.allocations;
+                        }
+                    }
+                }
+            } catch(errGas) {
+                console.warn("GAS AI call failed, using client-side Dietitian engine:", errGas);
+            }
+
+            // 2. ใช้ระบบ Smart Dietitian Engine คำนวณและสุ่มจัดสำรับอาหารไทยตามโควต้า 100% (ปลอดภัย ไม่ต้องพึ่งพา API Key ที่หน้าบ้าน)
+            if (!mealPlanResult) {
+                mealPlanResult = generateDynamicDietitianPlan(currentTargetKcal, targetMacros, exchangeData, profile);
+            }
+
+            if (btn) btn.disabled = false;
+            renderAiMealPlan(mealPlanResult);
+        };
+
+        // ฟังก์ชันจัดสรรส่วนอาหารจริง 100% ตามที่ผู้ใช้เลือกในตาราง Food Exchange
+        function generateDynamicDietitianPlan(targetKcal, macros, exchangeList, profile) {
+            // ดึงจำนวนส่วนอาหารจากชื่อหรือ ID
+            const getValByMatch = (regex) => {
+                let total = 0;
+                for (let i = 0; i < exchangeList.length; i++) {
+                    const it = exchangeList[i];
+                    if (regex.test(it.name || '') || regex.test(it.id || '')) {
+                        total += parseFloat(it.val) || 0;
+                    }
+                }
+                return Math.round(total * 10) / 10;
+            };
+
+            const riceTotal = getValByMatch(/ข้าวแป้ง|rice/i);
+            const meatTotal = getValByMatch(/เนื้อสัตว์|meat/i);
+            const vegTotal = getValByMatch(/ผัก|veg/i);
+            const fruitTotal = getValByMatch(/ผลไม้|fruit/i);
+            // หมวดไขมัน/น้ำมันปรุงอาหาร (Fats & Oils) - แยกเฉพาะหมวดน้ำมัน ไม่รวมไขมันที่แฝงในเนื้อสัตว์หรือนม
+            const fatTotal = getValByMatch(/^(ไขมัน|น้ำมัน)(\s|\(|$)|^fat$/i);
+            const milkTotal = getValByMatch(/^นม|milk/i);
+
+            // ฟังก์ชันแบ่ง 3 มื้อ (เช้า, กลางวัน, เย็น) ให้ผลรวมเท่ากับ total 100%
+            const allocate3 = (total, r1, r2) => {
+                if (total <= 0) return [0, 0, 0];
+                let p1 = Math.round((total * r1) * 2) / 2;
+                let p2 = Math.round((total * r2) * 2) / 2;
+                let p3 = Math.round((total - p1 - p2) * 2) / 2;
+                if (p3 < 0) {
+                    p2 = Math.max(0, p2 + p3);
+                    p3 = 0;
+                }
+                const diff = Math.round((total - (p1 + p2 + p3)) * 10) / 10;
+                if (diff !== 0) {
+                    p2 = Math.round((p2 + diff) * 2) / 2;
+                }
+                p3 = Math.round((total - p1 - p2) * 2) / 2;
+                return [p1, p2, p3];
+            };
+
+            // 1. จัดสรรข้าวแป้ง
+            const [bRice, lRice, dRice] = allocate3(riceTotal, 0.33, 0.34);
+
+            // 2. จัดสรรเนื้อสัตว์
+            const [bMeat, lMeat, dMeat] = allocate3(meatTotal, 0.30, 0.40);
+
+            // 3. จัดสรรผัก
+            const [bVeg, lVeg, dVeg] = allocate3(vegTotal, 0.20, 0.40);
+
+            // 4. จัดสรรผลไม้ (เน้นกลางวัน และว่างบ่าย)
+            let bFruit = 0, lFruit = 0, sFruit = 0, dFruit = 0;
+            if (fruitTotal === 1) {
+                sFruit = 1;
+            } else if (fruitTotal === 2) {
+                lFruit = 1; sFruit = 1;
+            } else if (fruitTotal === 3) {
+                bFruit = 1; lFruit = 1; sFruit = 1;
+            } else if (fruitTotal >= 4) {
+                bFruit = 1; lFruit = 1; sFruit = Math.round((fruitTotal - 3) * 10) / 10; dFruit = 1;
+            }
+
+            // 5. จัดสรรไขมัน
+            const [bFat, lFat, dFat] = allocate3(fatTotal, 0.20, 0.40);
+
+            // 6. จัดสรรนม
+            let bMilk = 0, sMilk = 0;
+            if (milkTotal === 1) bMilk = 1;
+            else if (milkTotal >= 2) { bMilk = 1; sMilk = milkTotal - 1; }
+
+            // คลังเมนูสุ่มหมุนเวียน
+            const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+            const breakfastDishes = [
+                { name: "ข้าวต้มทรงเครื่องอกไก่ฉีกและเห็ดหอม", note: "ย่อยง่าย ได้คาร์โบไฮเดรตเชิงซ้อนและโปรตีน" },
+                { name: "โจ๊กข้าวกล้องหมูสับไม่ติดมัน ใส่ไข่ลวกและผักชี", note: "อิ่มสบายท้อง มีสารอาหารครบถ้วน" },
+                { name: "ข้าวกล้องร้อนๆ พร้อมไข่ต้มยางมะตูมและผักนึ่ง", note: "โปรตีนคุณภาพสูง ควบคุมไขมันได้ดี" },
+                { name: "แซนด์วิชขนมปังโฮลวีทอกไก่ฉีกและผักสด", note: "สะดวก รวดเร็ว และไฟเบอร์สูง" },
+                { name: "ข้าวต้มปลาเก๋าโรยคื่นช่ายและกระเทียมเจียว", note: "โปรตีนจากเนื้อปลา ย่อยง่าย ไขมันต่ำ" }
+            ];
+
+            const lunchDishes = [
+                { name: "ข้าวกล้อง + ต้มยำกุ้งน้ำใสเห็ดฟาง + ผัดผักรวมมิตร", note: "ซดคล่องคอ แคลอรี่ต่ำ อุดมด้วยสมุนไพร" },
+                { name: "ข้าวไรซ์เบอร์รี่ + อกไก่ผัดขิง + ต้มจืดเต้าหู้หมูสับสาหร่าย", note: "ขิงช่วยย่อยอาหาร โปรตีนลีนจากไก่และเต้าหู้" },
+                { name: "ก๋วยเตี๋ยวเส้นหมี่น้ำใสลูกชิ้นปลาและเนื้อปลาสด + ถั่วงอกผักบุ้ง", note: "คาร์บจากเส้นหมี่ ผักลวกและโปรตีนปลา" },
+                { name: "ข้าวสวย + พะแนงไก่ใส่ถั่วฝักยาว + ยำแตงกวา", note: "รสชาติกลมกล่อม มีสัดส่วนไขมันดีที่เหมาะสม" },
+                { name: "ข้าวกล้อง + ลาบหมูไม่ติดมัน + ผักสดเคียงแตงกวาถั่วพู", note: "แซ่บแบบคลีน ได้โปรตีนเต็มที่ไม่อ้วน" },
+                { name: "ข้าวสวย + ผัดกะเพราอกไก่สับไข่ดาวน้ำ + แกงจืดฟัก", note: "เมนูโปรดคนไทย ปรุงน้ำมันน้อยดีต่อสุขภาพ" }
+            ];
+
+            const dinnerDishes = [
+                { name: "ข้าวกล้อง + ปลากะพงนึ่งซีอิ๊วขิงซอย + แกงจืดเต้าหู้ผักกาดขาว", note: "เนื้อปลาย่อยง่าย ไม่หนักท้องช่วงค่ำ" },
+                { name: "ข้าวสวย + แกงส้มผักรวมกุ้งสด + ผัดบวบใส่ไข่", note: "รสเปรี้ยวนำจากมะขามเปียก ไร้กะทิ ใยอาหารสูง" },
+                { name: "ข้าวกล้อง + สเต็กอกไก่ย่างสมุนไพร + สลัดผักน้ำใส", note: "โปรตีนเน้นๆ เสริมสร้างกล้ามเนื้อยามหลับ" },
+                { name: "ข้าวไรซ์เบอร์รี่ + ยำปลากระป๋องใส่หอมแดงพริกสด + ผักลวกจิ้ม", note: "แคลเซียมสูงจากก้างปลา อิ่มท้องไขมันต่ำ" },
+                { name: "ข้าวสวย + ต้มยำปลานิลน้ำใส + ผัดผักแขนงน้ำมันหอย", note: "ต้มยำน้ำใสซดอุ่นๆ ผักแขนงกรอบอร่อย" }
+            ];
+
+            const fruits = ["ส้มเขียวหวาน 1 ผล", "กล้วยน้ำว้า 1 ผล", "แตงโมสด 6-8 ชิ้นคำ", "ฝรั่งสด 4-5 ชิ้นคำ", "แอปเปิ้ล 1/2 ผล"];
+            const bDish = pickRandom(breakfastDishes);
+            const lDish = pickRandom(lunchDishes);
+            const dDish = pickRandom(dinnerDishes);
+
+            // คำนวณพลังงานจริงตามส่วนอาหาร (Food Exchange Calorie Formula)
+            // ข้าว 80 kcal, เนื้อสัตว์เฉลี่ย ~45 kcal (ตามสัดส่วนต่ำมาก/ต่ำ), ผัก ข 28 kcal, ผลไม้ 60 kcal, ไขมัน 45 kcal, นม 100 kcal
+            const calcMealKcal = (r, m, v, fr, ft, mk) => {
+                return Math.round((r * 80) + (m * 45) + (v * 28) + (fr * 60) + (ft * 45) + (mk * 100));
+            };
+
+            const bKcal = calcMealKcal(bRice, bMeat, bVeg, bFruit, bFat, bMilk);
+            const lKcal = calcMealKcal(lRice, lMeat, lVeg, lFruit, lFat, 0);
+            const sKcal = calcMealKcal(0, 0, 0, sFruit, 0, sMilk) || 80;
+            const dKcal = calcMealKcal(dRice, dMeat, dVeg, dFruit, dFat, 0);
+
+            // Format portion strings
+            const buildPortionStr = (r, m, v, ft) => {
+                const parts = [];
+                if (r > 0) parts.push(`ข้าว/แป้ง ${r} ทัพพี`);
+                if (m > 0) parts.push(`เนื้อสัตว์ ${Math.round(m * 2 * 10) / 10} ช้อนโต๊ะ`);
+                if (v > 0) parts.push(`ผักสุก ${v} ทัพพี`);
+                if (ft > 0) parts.push(`น้ำมันปรุง ${ft} ช้อนชา`);
+                return parts.join(' + ');
+            };
+
+            const buildExchangeStr = (r, m, v, ft) => {
+                const parts = [];
+                if (r > 0) parts.push(`ข้าวแป้ง ${r} ส่วน`);
+                if (m > 0) parts.push(`เนื้อสัตว์ ${m} ส่วน`);
+                if (v > 0) parts.push(`ผัก ${v} ส่วน`);
+                if (ft > 0) parts.push(`ไขมัน ${ft} ส่วน`);
+                return parts.join(', ');
+            };
+
+            const bItems = [
+                {
+                    name: bDish.name,
+                    portion: buildPortionStr(bRice, bMeat, bVeg, bFat),
+                    exchange_used: buildExchangeStr(bRice, bMeat, bVeg, bFat),
+                    kcal: Math.round(calcMealKcal(bRice, bMeat, bVeg, 0, bFat, 0)),
+                    note: bDish.note
+                }
+            ];
+            if (bFruit > 0) {
+                bItems.push({
+                    name: pickRandom(fruits),
+                    portion: `${bFruit} ส่วน`,
+                    exchange_used: `ผลไม้ ${bFruit} ส่วน`,
+                    kcal: Math.round(bFruit * 60),
+                    note: "วิตามินซีและกากใยช่วงเช้า"
+                });
+            }
+            if (bMilk > 0) {
+                bItems.push({
+                    name: "นมสด/นมพร่องมันเนย",
+                    portion: `${bMilk} กล่อง (240 ml)`,
+                    exchange_used: `นม ${bMilk} ส่วน`,
+                    kcal: Math.round(bMilk * 100),
+                    note: "แคลเซียมและโปรตีน"
+                });
+            }
+
+            const lItems = [
+                {
+                    name: lDish.name,
+                    portion: buildPortionStr(lRice, lMeat, lVeg, lFat),
+                    exchange_used: buildExchangeStr(lRice, lMeat, lVeg, lFat),
+                    kcal: Math.round(calcMealKcal(lRice, lMeat, lVeg, 0, lFat, 0)),
+                    note: lDish.note
+                }
+            ];
+            if (lFruit > 0) {
+                lItems.push({
+                    name: pickRandom(fruits),
+                    portion: `${lFruit} ส่วน`,
+                    exchange_used: `ผลไม้ ${lFruit} ส่วน`,
+                    kcal: Math.round(lFruit * 60),
+                    note: "สดชื่น ล้างปากหลังอาหาร"
+                });
+            }
+
+            const sItems = [];
+            if (sFruit > 0) {
+                sItems.push({
+                    name: pickRandom(fruits),
+                    portion: `${sFruit} ส่วน`,
+                    exchange_used: `ผลไม้ ${sFruit} ส่วน`,
+                    kcal: Math.round(sFruit * 60),
+                    note: "ลดความหิวก่อนมื้อเย็น"
+                });
+            }
+            if (sMilk > 0) {
+                sItems.push({
+                    name: "นมสด/นมถั่วเหลือง",
+                    portion: `${sMilk} กล่อง (240 ml)`,
+                    exchange_used: `นม ${sMilk} ส่วน`,
+                    kcal: Math.round(sMilk * 100),
+                    note: "อิ่มท้อง อยู่ได้ถึงมื้อค่ำ"
+                });
+            }
+            if (sItems.length === 0) {
+                sItems.push({
+                    name: "น้ำเต้าหู้หวานน้อย หรือ ถั่วอบธรรมชาติ",
+                    portion: "1 แก้ว / 1 ฝ่ามือเล็ก",
+                    exchange_used: "อาหารว่างเสริม",
+                    kcal: 80,
+                    note: "ควบคุมระดับน้ำตาลในเลือด"
+                });
+            }
+
+            const dItems = [
+                {
+                    name: dDish.name,
+                    portion: buildPortionStr(dRice, dMeat, dVeg, dFat),
+                    exchange_used: buildExchangeStr(dRice, dMeat, dVeg, dFat),
+                    kcal: Math.round(calcMealKcal(dRice, dMeat, dVeg, 0, dFat, 0)),
+                    note: dDish.note
+                }
+            ];
+            if (dFruit > 0) {
+                dItems.push({
+                    name: pickRandom(fruits),
+                    portion: `${dFruit} ส่วน`,
+                    exchange_used: `ผลไม้ ${dFruit} ส่วน`,
+                    kcal: Math.round(dFruit * 60),
+                    note: "กากใยช่วยขับถ่ายยามเช้า"
+                });
+            }
+
+            return {
+                summary: `แผนอาหารนี้กระจายส่วนอาหารตามโควต้าที่คุณเลือกไว้ครบ 100% (ข้าวแป้ง ${riceTotal} ส่วน, เนื้อสัตว์ ${meatTotal} ส่วน, ผัก ${vegTotal} ส่วน, ผลไม้ ${fruitTotal} ส่วน, ไขมัน ${fatTotal} ส่วน)`,
+                allocations: [
+                    { name: '🌾 ข้าวแป้ง', quota: riceTotal, b: bRice, l: lRice, s: 0, d: dRice, sum: Math.round((bRice + lRice + dRice)*10)/10, unit: 'ทัพพี' },
+                    { name: '🥩 เนื้อสัตว์', quota: meatTotal, b: bMeat, l: lMeat, s: 0, d: dMeat, sum: Math.round((bMeat + lMeat + dMeat)*10)/10, unit: 'ส่วน (2 ชต.)' },
+                    { name: '🥬 ผัก', quota: vegTotal, b: bVeg, l: lVeg, s: 0, d: dVeg, sum: Math.round((bVeg + lVeg + dVeg)*10)/10, unit: 'ทัพพี' },
+                    { name: '🍎 ผลไม้', quota: fruitTotal, b: bFruit, l: lFruit, s: sFruit, d: dFruit, sum: Math.round((bFruit + lFruit + sFruit + dFruit)*10)/10, unit: 'ส่วน' },
+                    { name: '🫒 ไขมัน', quota: fatTotal, b: bFat, l: lFat, s: 0, d: dFat, sum: Math.round((bFat + lFat + dFat)*10)/10, unit: 'ช้อนชา' },
+                    ...(milkTotal > 0 ? [{ name: '🥛 นม', quota: milkTotal, b: bMilk, l: 0, s: sMilk, d: 0, sum: Math.round((bMilk + sMilk)*10)/10, unit: 'กล่อง' }] : [])
+                ],
+                total_calculated: {
+                    kcal: Math.round(bKcal + lKcal + sKcal + dKcal),
+                    carb_g: macros.c,
+                    protein_g: macros.p,
+                    fat_g: macros.f
+                },
+                meals: [
+                    { meal_name: "มื้อเช้า (Breakfast)", time: "07:00 - 08:30 น.", kcal: bKcal, items: bItems },
+                    { meal_name: "มื้อกลางวัน (Lunch)", time: "12:00 - 13:00 น.", kcal: lKcal, items: lItems },
+                    { meal_name: "อาหารว่างบ่าย (Afternoon Snack)", time: "15:00 - 15:30 น.", kcal: sKcal, items: sItems },
+                    { meal_name: "มื้อเย็น (Dinner)", time: "18:00 - 19:00 น.", kcal: dKcal, items: dItems }
+                ]
+            };
+        }
+
+        function renderAiMealPlan(plan) {
+            const content = document.getElementById('ai_plan_content');
+            if (!content || !plan) return;
+
+            let mealsHtml = '';
+            (plan.meals || []).forEach(m => {
+                let itemsHtml = '';
+                (m.items || []).forEach(it => {
+                    itemsHtml += `
+                        <div class="py-2.5 border-b border-gray-100 last:border-none text-xs">
+                            <div class="flex justify-between items-start gap-2">
+                                <div class="flex-1">
+                                    <div class="font-bold text-gray-800 text-sm">${it.name}</div>
+                                    <div class="text-gray-600 text-xs mt-0.5">${it.portion}</div>
+                                    ${it.exchange_used ? `
+                                        <div class="mt-1">
+                                            <span class="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded text-[10px] font-semibold">
+                                                🏷️ ส่วนอาหารที่ใช้: ${it.exchange_used}
+                                            </span>
+                                        </div>
+                                    ` : ''}
+                                    ${it.note ? `<div class="text-[11px] text-gray-400 mt-0.5">💡 ${it.note}</div>` : ''}
+                                </div>
+                                <span class="shrink-0 font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded text-xs">${Math.round(it.kcal)} kcal</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                mealsHtml += `
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+                                <div>
+                                    <h4 class="font-bold text-gray-900 text-base">${m.meal_name}</h4>
+                                    <span class="text-xs text-gray-500 font-medium">🕒 ${m.time}</span>
+                                </div>
+                                <span class="text-xs font-black text-indigo-700 bg-white px-3 py-1 rounded-full border border-indigo-200 shadow-sm">${Math.round(m.kcal)} kcal</span>
+                            </div>
+                            <div class="space-y-1">
+                                ${itemsHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // ตารางสรุปการจัดสรรส่วนอาหารลง 4 มื้อ
+            let allocationTableHtml = '';
+            if (plan.allocations && plan.allocations.length > 0) {
+                allocationTableHtml = `
+                    <div class="mb-5 p-4 bg-white rounded-xl border border-indigo-100 shadow-sm">
+                        <div class="text-xs font-bold text-indigo-950 mb-2.5 flex items-center gap-1.5">
+                            <span>📋 สรุปการกระจายส่วนอาหารแลกเปลี่ยนลง 4 มื้อ (จัดสรรครบถ้วน 100%):</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs text-center border-collapse">
+                                <thead>
+                                    <tr class="bg-indigo-50 text-indigo-900 font-bold border-b border-indigo-100">
+                                        <th class="py-2 px-3 text-left">หมวดอาหาร</th>
+                                        <th class="py-2 px-2 bg-indigo-100/50">โควต้าที่คุณกำหนด</th>
+                                        <th class="py-2 px-2">มื้อเช้า</th>
+                                        <th class="py-2 px-2">มื้อกลางวัน</th>
+                                        <th class="py-2 px-2">อาหารว่าง</th>
+                                        <th class="py-2 px-2">มื้อเย็น</th>
+                                        <th class="py-2 px-2 text-indigo-700 font-black">รวมจัดสรร</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 text-gray-700">
+                                    ${plan.allocations.map(al => `
+                                        <tr class="hover:bg-gray-50/80 transition">
+                                            <td class="py-2 px-3 text-left font-bold text-gray-800">${al.name}</td>
+                                            <td class="py-2 px-2 font-black text-indigo-700 bg-indigo-50/40">${al.quota} ส่วน</td>
+                                            <td class="py-2 px-2 font-medium">${al.b > 0 ? `${al.b} ส่วน` : '-'}</td>
+                                            <td class="py-2 px-2 font-medium">${al.l > 0 ? `${al.l} ส่วน` : '-'}</td>
+                                            <td class="py-2 px-2 font-medium">${al.s > 0 ? `${al.s} ส่วน` : '-'}</td>
+                                            <td class="py-2 px-2 font-medium">${al.d > 0 ? `${al.d} ส่วน` : '-'}</td>
+                                            <td class="py-2 px-2 font-black ${al.sum === al.quota ? 'text-green-600' : 'text-blue-600'}">
+                                                ${al.sum} ส่วน ${al.sum === al.quota ? '✅' : ''}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            content.innerHTML = `
+                <!-- กล่องข้อควรระวัง -->
+                <div class="bg-amber-50 p-4 rounded-xl border border-amber-200 text-xs text-amber-900 mb-4 leading-relaxed shadow-sm">
+                    <div class="font-bold text-sm text-amber-800 flex items-center gap-1.5 mb-1.5">
+                        <span>⚠️ ข้อควรระวัง:</span>
+                    </div>
+                    <ul class="list-disc list-inside space-y-1 pl-1 text-amber-800 text-xs">
+                        <li>หากคุณมีโรคประจำตัว (เช่น เบาหวาน ไต หัวใจ หรือความดันโลหิตสูง) แนะนำให้ปรึกษาแพทย์หรือนักโภชนาการเพื่อวางแผนโภชนาการเฉพาะบุคคลค่ะ</li>
+                        <li>ข้อมูลนี้เป็นคำแนะนำทั่วไป ไม่ใช่คำแนะนำทางการแพทย์ หากมีอาการผิดปกติควรพบแพทย์นะคะ</li>
+                    </ul>
+                </div>
+
+                ${allocationTableHtml}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                    ${mealsHtml}
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 class="font-bold text-gray-800 text-xs mb-2">📊 สรุปเปรียบเทียบสารอาหารเป้าหมายประจำวัน</h4>
+                    <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                        <div class="bg-blue-50 p-2.5 rounded-lg border border-blue-100">
+                            <div class="text-gray-500 text-[10px]">พลังงานรวมของแผน</div>
+                            <div class="font-bold text-blue-700 text-sm">${Math.round(plan.total_calculated.kcal)} kcal</div>
+                        </div>
+                        <div class="bg-green-50 p-2.5 rounded-lg border border-green-100">
+                            <div class="text-gray-500 text-[10px]">คาร์บเป้าหมาย</div>
+                            <div class="font-bold text-green-700 text-sm">${plan.total_calculated.carb_g}g</div>
+                        </div>
+                        <div class="bg-red-50 p-2.5 rounded-lg border border-red-100">
+                            <div class="text-gray-500 text-[10px]">โปรตีนเป้าหมาย</div>
+                            <div class="font-bold text-red-700 text-sm">${plan.total_calculated.protein_g}g</div>
+                        </div>
+                        <div class="bg-yellow-50 p-2.5 rounded-lg border border-yellow-100">
+                            <div class="text-gray-500 text-[10px]">ไขมันเป้าหมาย</div>
+                            <div class="font-bold text-yellow-700 text-sm">${plan.total_calculated.fat_g}g</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function calculateMacros() {
+            if (currentTargetKcal <= 0) return;
+            const w_kg = parseFloat(els.weight.value) || 0;
+            
+            const pro_gkg = parseFloat(els.slide_pro.value);
+            els.val_pro_gkg.innerText = pro_gkg.toFixed(1) + ' g/kg';
+            const pro_g = pro_gkg * w_kg;
+            els.out_pro_g.innerText = Math.round(pro_g);
+            
+            const pro_kcal = Math.round(pro_g * 4);
+            els.out_pro_kcal.innerText = pro_kcal;
+            targetMacros.p = Math.round(pro_g);
+            
+            // Calculate Protein Percentage
+            const pro_pct = Math.round((pro_kcal / currentTargetKcal) * 100);
+            if (els.val_pro_pct) els.val_pro_pct.innerText = `(${pro_pct}%)`;
+
+            const fat_pct = parseFloat(els.slide_fat.value);
+            els.val_fat_pct.innerText = fat_pct + '%';
+            const fat_kcal = (fat_pct / 100) * currentTargetKcal;
+            els.out_fat_g.innerText = Math.round(fat_kcal / 9);
+            els.out_fat_kcal.innerText = Math.round(fat_kcal);
+            targetMacros.f = Math.round(fat_kcal / 9);
+
+            const carb_kcal = currentTargetKcal - (pro_g * 4) - fat_kcal;
+            if (carb_kcal < 0) {
+                els.macro_warning.classList.remove('hidden');
+                targetMacros.c = 0;
+            } else {
+                els.macro_warning.classList.add('hidden');
+                els.out_carb_kcal.innerText = Math.round(carb_kcal);
+                els.out_carb_g.innerText = Math.round(carb_kcal / 4);
+                els.val_carb_pct.innerText = Math.round((carb_kcal / currentTargetKcal) * 100) + '%';
+                targetMacros.c = Math.round(carb_kcal / 4);
+            }
+            calculateActualExchange();
+        }
+
+        window.fetchDataFromGAS = async function() {
+            try {
+                const url = GAS_API_URL;
+                const response = await fetch(url);
+                const text = await response.text();
+                
+                if(text.includes('Backend is running!')){
+                    console.warn('Backend GAS script not fully deployed.');
+                    return;
+                }
+                
+                const json = JSON.parse(text);
+                if (json.status === "success" && json.exchange_list && json.exchange_list.length > 0) {
+                    // Update global exchangeData
+                    exchangeData.length = 0; // clear old data
+                    for (let i = 0; i < json.exchange_list.length; i++) {
+                        const item = json.exchange_list[i];
+                        exchangeData.push({
+                            id: item.name,
+                            name: item.name,
+                            unit: item.unit,
+                            c: item.c,
+                            p: item.p,
+                            f: item.f,
+                            kcal: item.kcal,
+                            val: 0 // เริ่มต้นที่ 0 ส่วน
+                        });
+                    }
+                    
+                    initExchangeUI(); // Render หน้า UI ใหม่ด้วยข้อมูลจาก Google Sheets
+                    
+                    if (json.food_items && json.food_items.length > 0) {
+                        globalFoodItems = json.food_items;
+                    }
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        function cleanGroupName(str) {
+            if (!str) return '';
+            return str
+                .replace(/\(.*?\)/g, '')   // ตัดวงเล็บ เช่น (240 ml)
+                .replace('ประเภท', '')     // ตัดคำว่า ประเภท
+                .replace(/\s+/g, ' ')     // ปรับเว้นวรรค
+                .trim();
+        }
+
+        window.showFoodExamples = function(shouldScroll = true) {
+            if (globalFoodItems.length === 0) {
+                if (shouldScroll) alert("กำลังรอข้อมูลจาก Google Sheets... หรือไม่มีข้อมูล");
+                return;
+            }
+            
+            // หาหมวดอาหารที่ผู้ใช้เลือก (จำนวนส่วน > 0)
+            const selectedGroups = [];
+            for (let i = 0; i < exchangeData.length; i++) {
+                if (exchangeData[i].val > 0) {
+                    selectedGroups.push(cleanGroupName(exchangeData[i].name));
+                }
+            }
+            
+            let container = document.getElementById('food_examples_container');
+            if (container) {
+                container.classList.remove('hidden');
+            }
+            
+            let html = `
+                <div class="print-page-2-header flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="text-xl font-bold text-gray-800">ตัวอย่างปริมาณอาหาร 1 ส่วน (เฉพาะหมวดที่คุณเลือก)</h2>
+                    <span class="text-xs text-gray-500 hidden print:inline font-normal">หน้า 2 / 2</span>
+                </div>
+            `;
+            html += '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 print-examples-grid">';
+            
+            // Group by category (new data3 format)
+            const grouped = {};
+            for (let i = 0; i < globalFoodItems.length; i++) {
+                const item = globalFoodItems[i];
+                if (!item.category) continue;
+                const cat = item.category.trim();
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(item);
+            }
+            
+            let hasMatch = false;
+
+            for (const cat in grouped) {
+                // Check if this category matches selected groups exactly
+                const catClean = cleanGroupName(cat);
+                if (selectedGroups.indexOf(catClean) !== -1) {
+                    hasMatch = true;
+                    html += `<div class="example-category-card bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><h3 class="font-bold text-blue-600 mb-2 border-b border-blue-100 pb-1">${cat}</h3><ul class="text-sm space-y-2 text-gray-600">`;
+                    for (let k = 0; k < grouped[cat].length; k++) {
+                        const food = grouped[cat][k];
+                        if (food.name) {
+                            // แปลงขึ้นบรรทัดใหม่ \n ให้เป็น <br> (สำหรับหมวดผักยาวๆ)
+                            const amountHtml = food.amount ? String(food.amount).replace(/\n/g, '<br>') : '';
+                            html += `<li><span class="font-semibold text-gray-800">${food.name}</span> : <span class="text-blue-500">${amountHtml}</span></li>`;
+                        }
+                    }
+                    html += `</ul></div>`;
+                }
+            }
+            
+            html += '</div>';
+            
+            if (!hasMatch) {
+                html += '<p class="text-gray-500 text-sm">คุณยังไม่ได้เพิ่มจำนวนส่วนอาหาร หรือไม่พบตัวอย่างอาหารที่ตรงกับหมวดที่คุณเลือกครับ</p>';
+            }
+            
+            container.innerHTML = html;
+            if (shouldScroll) {
+                container.scrollIntoView({ behavior: 'smooth' });
+            }
+        };
+
+        window.printDocument = function() {
+            if (globalFoodItems.length > 0) {
+                showFoodExamples(false);
+            }
+            setTimeout(() => {
+                window.print();
+            }, 100);
+        };
+
+        window.addEventListener('beforeprint', function() {
+            if (globalFoodItems.length > 0) {
+                showFoodExamples(false);
+            }
+        });
+
+        const inputIds = ['gender', 'age', 'height', 'weight', 'activity'];
+        for (let i = 0; i < inputIds.length; i++) {
+            document.getElementById(inputIds[i]).addEventListener('input', calculateBase);
+        }
+        els.slide_pro.addEventListener('input', calculateMacros);
+        els.slide_fat.addEventListener('input', calculateMacros);
+
+        // Fetch Data Silently On Load
+        fetchDataFromGAS();
+        initExchangeUI();
+        calculateBase();
+        loadFoodsDatabase();
+
+        // Initialize Custom Dishes & Daily Meal Tracker
+        loadCustomDishesFromStorage();
+        loadDailyMealsFromStorage();
+        renderDailyMealTracker();
+        fetchDishesFromCloud(true);
+        
+        } catch(err) {
+            alert("เกิดข้อผิดพลาดในสคริปต์: " + err.message + "\nLine: " + err.lineNumber);
+            console.error(err);
+        }
+    </script>
+</body>
+</html>
